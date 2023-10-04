@@ -1,0 +1,38 @@
+{
+	"name": "liquiddesign/liquid-monitor-connector",
+	"description": "Connector mezi webem a Liquid Monitor",
+	"license": "MIT",
+	"autoload": {
+		"psr-4": {"LiquidMonitorConnector\\": "src/"}
+	},
+	"require" :
+	{
+		"php":">=8.2",
+		"nette/utils":"^3.0",
+		"nette/http":"^3.0",
+		"tracy/tracy":"^2.0",
+		"nette/di":"~3.0",
+		"guzzlehttp/guzzle":"^7.0"
+	},
+	"require-dev":
+	{
+		"nette/tester":"^2.0",
+		"composer/composer": "~2.0",
+		"liquiddesign/codestyle": "~2.0",
+		"liquiddesign/migrator": "~1.0",
+		"phpstan/phpstan-nette": "^1.0",
+		"phpcompatibility/php-compatibility": "^9.0"
+	},
+	"scripts": {
+		"phpstan": "phpstan analyse --memory-limit 1G -c phpstan.neon",
+		"phpcs": "phpcs --standard=ruleset.xml --ignore=assets src",
+		"phpcsfix": "phpcbf --standard=ruleset.xml --ignore=assets src",
+		"phpcheck7": "phpcs -p ./src --standard=vendor/phpcompatibility/php-compatibility/PHPCompatibility --runtime-set testVersion 7.4",
+		"phpcheck8": "phpcs -p ./src --standard=vendor/phpcompatibility/php-compatibility/PHPCompatibility --runtime-set testVersion 8.2"
+	},
+	"config": {
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		}
+	}
+}
