@@ -26,7 +26,7 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 		
 		$builder = $this->getContainerBuilder();
 		
-		$pohoda = $builder->addDefinition('pohoda')->setType(Connector::class);
-		$pohoda->addSetup('setConfiguration', [$config->url, $config->apiKey]);
+		$connector = $builder->addDefinition('liquidMonitorConnector')->setType(Connector::class);
+		$connector->addSetup('setConfiguration', [$config->url, $config->apiKey]);
 	}
 }
