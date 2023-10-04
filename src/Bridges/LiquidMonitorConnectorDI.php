@@ -15,6 +15,7 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 	{
 		return Expect::structure([
 			'url' => Expect::string()->required(),
+			'apiKey' => Expect::string()->required(),
 		]);
 	}
 	
@@ -26,6 +27,6 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 		$builder = $this->getContainerBuilder();
 		
 		$pohoda = $builder->addDefinition('pohoda')->setType(Connector::class);
-		$pohoda->addSetup('setConfiguration', [$config->url]);
+		$pohoda->addSetup('setConfiguration', [$config->url, $config->apiKey]);
 	}
 }
