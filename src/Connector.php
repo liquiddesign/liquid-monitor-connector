@@ -12,7 +12,7 @@ class Connector
 
 	private string $apiKey;
 	
-	public function __construct(string $url, string $apiKey)
+	public function setConfiguration(string $url, string $apiKey): void
 	{
 		$this->url = $url;
 		$this->apiKey = $apiKey;
