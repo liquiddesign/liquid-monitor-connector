@@ -6,12 +6,15 @@ namespace LiquidMonitorConnector;
 
 use GuzzleHttp\Client;
 use Nette\Http\Request;
+use Tracy\Debugger;
 
 class Cron
 {
+	private const JOB_SCHEDULE_ENDPOINT = '/schedule-job';
 	private const JOB_START_ENDPOINT = '/start-job';
 	private const JOB_STATUS_ENDPOINT = '/status-job';
 	private const JOB_FINISH_ENDPOINT = '/finish-job';
+	private const JOB_FAIL_ENDPOINT = '/fail-job';
 	
 	private string $url;
 	
@@ -30,9 +33,17 @@ class Cron
 		$this->apiKey = $apiKey;
 	}
 	
+	public function scheduleJob(int $cronId, ?string $logJson = null): void
+	{
+		$params = ['cronId' => $cronId];
+		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params);
+	}
+	
 	public function startJob(?string $logJson = null): void
 	{
-		$params = ['jobLog' => $logJson, 'pid' => \getmypid(), 'maxExecutionTime' => \ini_get('max_execution_time')];
+		\register_shutdown_function([$this, 'shutdownFunction']);
+		
+		$params = ['jobLog' => $logJson, 'maxExecutionTime' => \ini_get('max_execution_time')];
 		$this->send($this->getUrl() . self::JOB_START_ENDPOINT, $params);
 	}
 	
@@ -46,6 +57,18 @@ class Cron
 	{
 		$params = ['jobLog' => $logJson, 'message' => $message];
 		$this->send($this->getUrl() . self::JOB_STATUS_ENDPOINT, $params);
+	}
+	
+	public function failJob(?string $logJson = null, ?string $message = null): void
+	{
+		$params = ['jobLog' => $logJson, 'message' => $message];
+		$this->send($this->getUrl() . self::JOB_FAIL_ENDPOINT, $params);
+	}
+	
+	private function shutdownFunction(): void
+	{
+		Debugger::log('Server shutdown');
+		$this->failJob(message: 'Server shutdown');
 	}
 	
 	private function getUrl(): string
@@ -68,10 +91,7 @@ class Cron
 		$client = new Client();
 		
 		$options = [
-			'headers' => [
-				'ApiKey' => $this->getApiKey(),
-			],
-			'json' => ['jobId' => $this->httpRequest->getPost('jobId')] + $params,
+			'json' => ['apiKey' => $this->getApiKey(), 'jobId' => $this->httpRequest->getPost('jobId')] + $params,
 			'verify' => false,
 		];
 		
