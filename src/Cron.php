@@ -6,6 +6,7 @@ namespace LiquidMonitorConnector;
 
 use GuzzleHttp\Client;
 use Nette\Http\Request;
+use Nette\Utils\Json;
 use Tracy\Debugger;
 
 class Cron
@@ -27,13 +28,22 @@ class Cron
 		$this->httpRequest = $httpRequest;
 	}
 	
+	public function getParameters(): \stdClass|null
+	{
+		if ($this->httpRequest->getRawBody() === null) {
+			return null;
+		}
+		
+		return Json::decode($this->httpRequest->getRawBody());
+	}
+	
 	public function setConfiguration(string $url, string $apiKey): void
 	{
 		$this->url = $url;
 		$this->apiKey = $apiKey;
 	}
 	
-	public function scheduleJob(int $cronId, ?string $logJson = null): void
+	public function scheduleJob(int $cronId): void
 	{
 		$params = ['cronId' => $cronId];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params);
@@ -64,7 +74,17 @@ class Cron
 		$params = ['jobLog' => $logJson, 'message' => $message];
 		$this->send($this->getUrl() . self::JOB_FAIL_ENDPOINT, $params);
 	}
+
+	private function getJobId(): int
+	{
+		if (!$this->getParameters() || !isset($this->getParameters()->jobId)) {
+			throw new \Exception('Job ID is not provided');
+		}
+		
+		return (int) $this->getParameters()->jobId;
+	}
 	
+	// phpcs:ignore
 	private function shutdownFunction(): void
 	{
 		Debugger::log('Server shutdown');
@@ -91,7 +111,7 @@ class Cron
 		$client = new Client();
 		
 		$options = [
-			'json' => ['apiKey' => $this->getApiKey(), 'jobId' => $this->httpRequest->getPost('jobId')] + $params,
+			'json' => ['apiKey' => $this->getApiKey(), 'jobId' => $this->getJobId()] + $params,
 			'verify' => false,
 		];
 		
