@@ -13,7 +13,7 @@ class Cron
 {
 	private const JOB_SCHEDULE_ENDPOINT = '/schedule-job';
 	private const JOB_START_ENDPOINT = '/start-job';
-	private const JOB_STATUS_ENDPOINT = '/status-job';
+	private const JOB_PROGRESS_ENDPOINT = '/progress-job';
 	private const JOB_FINISH_ENDPOINT = '/finish-job';
 	private const JOB_FAIL_ENDPOINT = '/fail-job';
 	
@@ -30,7 +30,7 @@ class Cron
 	
 	public function getParameters(): \stdClass|null
 	{
-		if ($this->httpRequest->getRawBody() === null) {
+		if (!$this->httpRequest->getRawBody()) {
 			return null;
 		}
 		
@@ -63,10 +63,10 @@ class Cron
 		$this->send($this->getUrl() . self::JOB_FINISH_ENDPOINT, $params);
 	}
 	
-	public function statusJob(?string $logJson = null, ?string $message = null): void
+	public function progressJob(?string $logJson = null, ?string $message = null): void
 	{
 		$params = ['jobLog' => $logJson, 'message' => $message];
-		$this->send($this->getUrl() . self::JOB_STATUS_ENDPOINT, $params);
+		$this->send($this->getUrl() . self::JOB_PROGRESS_ENDPOINT, $params);
 	}
 	
 	public function failJob(?string $logJson = null, ?string $message = null): void
@@ -75,10 +75,10 @@ class Cron
 		$this->send($this->getUrl() . self::JOB_FAIL_ENDPOINT, $params);
 	}
 
-	private function getJobId(): int
+	private function getJobId(): int|null
 	{
 		if (!$this->getParameters() || !isset($this->getParameters()->jobId)) {
-			throw new \Exception('Job ID is not provided');
+			return null;
 		}
 		
 		return (int) $this->getParameters()->jobId;
