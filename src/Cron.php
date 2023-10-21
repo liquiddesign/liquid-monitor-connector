@@ -113,6 +113,10 @@ class Cron
 		$options = [
 			'json' => ['apiKey' => $this->getApiKey(), 'jobId' => $this->getJobId()] + $params,
 			'verify' => false,
+			'headers' => [
+				'Accept' => 'application/json',
+				'Content-Type' => 'application/json',
+			],
 		];
 		
 		$client->post($url, $options);
