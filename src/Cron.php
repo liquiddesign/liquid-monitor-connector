@@ -53,7 +53,7 @@ class Cron
 	{
 		\register_shutdown_function([$this, 'shutdownFunction']);
 		
-		$params = ['jobLog' => $logJson, 'maxExecutionTime' => \ini_get('max_execution_time')];
+		$params = ['jobLog' => $logJson, 'timeout' => \ini_get('max_execution_time')];
 		$this->send($this->getUrl() . self::JOB_START_ENDPOINT, $params);
 	}
 	
