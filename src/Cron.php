@@ -48,30 +48,46 @@ class Cron
 		$params = ['cronId' => $cronId];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params);
 	}
-	
-	public function startJob(?string $logJson = null): void
+
+	/**
+	 * @param array<mixed>|null $data
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 */
+	public function startJob(?array $data = null): void
 	{
 		\register_shutdown_function([$this, 'shutdownFunction']);
 		
-		$params = ['jobLog' => $logJson, 'timeout' => (int) \ini_get('max_execution_time')];
+		$params = ['data' => $data, 'timeout' => (int) \ini_get('max_execution_time')];
 		$this->send($this->getUrl() . self::JOB_START_ENDPOINT, $params);
 	}
-	
-	public function finishJob(?string $logJson = null): void
+
+	/**
+	 * @param array<mixed>|null $data
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 */
+	public function finishJob(?array $data = null): void
 	{
-		$params = ['jobLog' => $logJson];
+		$params = ['data' => $data];
 		$this->send($this->getUrl() . self::JOB_FINISH_ENDPOINT, $params);
 	}
-	
-	public function progressJob(?string $logJson = null, ?string $message = null): void
+
+	/**
+	 * @param array<mixed>|null $data
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 */
+	public function progressJob(?array $data = null): void
 	{
-		$params = ['jobLog' => $logJson, 'message' => $message];
+		$params = ['data' => $data];
 		$this->send($this->getUrl() . self::JOB_PROGRESS_ENDPOINT, $params);
 	}
-	
-	public function failJob(?string $logJson = null, ?string $message = null): void
+
+	/**
+	 * @param array<mixed>|null $data
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 */
+	public function failJob(?array $data = null): void
 	{
-		$params = ['jobLog' => $logJson, 'message' => $message];
+		$params = ['data' => $data];
 		$this->send($this->getUrl() . self::JOB_FAIL_ENDPOINT, $params);
 	}
 
@@ -88,7 +104,7 @@ class Cron
 	private function shutdownFunction(): void
 	{
 		Debugger::log('Server shutdown');
-		$this->failJob(message: 'Server shutdown');
+		$this->failJob(data: ['reason' => 'Server shutdown']);
 	}
 	
 	private function getUrl(): string
