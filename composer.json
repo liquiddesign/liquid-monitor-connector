@@ -1,56 +1,57 @@
 {
-	"name": "liquiddesign/liquid-monitor-connector",
-	"description": "Connector mezi webem a Liquid Monitor",
-	"license": "MIT",
-	"autoload": {
-		"psr-4": {"LiquidMonitorConnector\\": "src/"}
-	},
-	"require" :
-	{
-		"php":">=8.2",
-		"nette/utils":"^3.0",
-		"nette/http":"^3.0",
-		"tracy/tracy":"^2.0",
-		"nette/di":"~3.0",
-		"guzzlehttp/guzzle":"^7.0"
-	},
-	"require-dev":
-	{
-		"nette/tester":"^2.0",
-		"composer/composer": "~2.0",
-		"liquiddesign/codestyle": "~3.0.9",
-		"liquiddesign/migrator": "~1.0",
-		"phpstan/phpstan-nette": "^1.0",
-		"phpcompatibility/php-compatibility": "^9.0"
-	},
-	"prefer-stable": true,
-	"minimum-stability": "dev",
-	"scripts": {
-		"fix-code": [
-			"@phpcsfix"
-		],
-		"code-style": [
-			"@phpcsfix",
-			"@phpcs"
-		],
-		"check-code": [
-			"@phpcs",
-			"@phpstan",
-			"@check-commit"
-		],
-		"phpstan": "phpstan analyse --memory-limit 1G -c phpstan.neon",
-		"phpcs": "phpcs --standard=ruleset.xml --ignore=assets src",
-		"phpcsfix": "phpcbf --standard=ruleset.xml --ignore=assets src",
-		"check-commit": "@php ./vendor/liquiddesign/codestyle/src/scripts/check-last-commit.php",
-		"changelog": "conventional-changelog",
-		"release": "conventional-changelog --commit",
-		"release:patch": "conventional-changelog --patch --commit",
-		"release:minor": "conventional-changelog --minor --commit",
-		"release:major": "conventional-changelog --major --commit"
-	},
-	"config": {
-		"allow-plugins": {
-			"dealerdirect/phpcodesniffer-composer-installer": true
-		}
-	}
+    "name": "liquiddesign/liquid-monitor-connector",
+    "description": "Connector mezi webem a Liquid Monitor",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "LiquidMonitorConnector\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.2",
+        "nette/utils": "^3.0",
+        "nette/http": "^3.0",
+        "tracy/tracy": "^2.0",
+        "nette/di": "~3.0",
+        "guzzlehttp/guzzle": "^7.0"
+    },
+    "require-dev": {
+        "nette/tester": "^2.0",
+        "composer/composer": "~2.0",
+        "liquiddesign/codestyle": "~3.0.9",
+        "liquiddesign/migrator": "~1.0",
+        "phpstan/phpstan-nette": "^1.0",
+        "phpcompatibility/php-compatibility": "^9.0"
+    },
+    "prefer-stable": true,
+    "minimum-stability": "dev",
+    "scripts": {
+        "fix-code": [
+            "@phpcsfix"
+        ],
+        "code-style": [
+            "@phpcsfix",
+            "@phpcs"
+        ],
+        "check-code": [
+            "@phpcs",
+            "@phpstan",
+            "@check-commit"
+        ],
+        "phpstan": "phpstan analyse --memory-limit 1G -c phpstan.neon",
+        "phpcs": "phpcs --standard=ruleset.xml --ignore=assets src",
+        "phpcsfix": "phpcbf --standard=ruleset.xml --ignore=assets src",
+        "check-commit": "@php ./vendor/liquiddesign/codestyle/src/scripts/check-last-commit.php",
+        "changelog": "conventional-changelog",
+        "release": "conventional-changelog --commit",
+        "release:patch": "conventional-changelog --patch --commit",
+        "release:minor": "conventional-changelog --minor --commit",
+        "release:major": "conventional-changelog --major --commit"
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    },
+    "version": "1.0.0"
 }
