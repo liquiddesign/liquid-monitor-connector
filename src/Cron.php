@@ -55,7 +55,7 @@ class Cron
 	 */
 	public function startJob(?array $data = null): void
 	{
-		\register_shutdown_function([$this, 'shutdownFunction']);
+//		\register_shutdown_function([$this, 'shutdownFunction']);
 		
 		$params = ['data' => $data, 'timeout' => (int) \ini_get('max_execution_time')];
 		$this->send($this->getUrl() . self::JOB_START_ENDPOINT, $params);
@@ -91,6 +91,12 @@ class Cron
 		$this->send($this->getUrl() . self::JOB_FAIL_ENDPOINT, $params);
 	}
 
+	protected function shutdownFunction(): void
+	{
+		Debugger::log('Server shutdown');
+		$this->failJob(data: ['reason' => 'Server shutdown']);
+	}
+
 	private function getJobId(): int|null
 	{
 		if (!$this->getParameters() || !isset($this->getParameters()->jobId)) {
@@ -98,13 +104,6 @@ class Cron
 		}
 		
 		return (int) $this->getParameters()->jobId;
-	}
-	
-	// phpcs:ignore
-	private function shutdownFunction(): void
-	{
-		Debugger::log('Server shutdown');
-		$this->failJob(data: ['reason' => 'Server shutdown']);
 	}
 	
 	private function getUrl(): string
