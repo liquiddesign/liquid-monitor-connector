@@ -42,10 +42,28 @@ class Cron
 		$this->url = $url;
 		$this->apiKey = $apiKey;
 	}
+
+	/**
+	 * @param int $cronId
+	 * @param array<mixed>|null $data
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 */
+	public function scheduleOrStartJob(int $cronId, ?array $data = null): bool
+	{
+		if ($this->getJobId()) {
+			$this->startJob($data);
+
+			return true;
+		}
+
+		$this->scheduleJob($cronId);
+
+		return false;
+	}
 	
 	public function scheduleJob(int $cronId): void
 	{
-		$params = ['cronId' => $cronId];
+		$params = ['cronId' => $cronId, 'timeout' => (int) \ini_get('max_execution_time')];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params);
 	}
 
@@ -57,7 +75,7 @@ class Cron
 	{
 //		\register_shutdown_function([$this, 'shutdownFunction']);
 		
-		$params = ['data' => $data, 'timeout' => (int) \ini_get('max_execution_time')];
+		$params = ['data' => $data];
 		$this->send($this->getUrl() . self::JOB_START_ENDPOINT, $params);
 	}
 
