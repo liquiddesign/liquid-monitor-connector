@@ -16,7 +16,8 @@ class Cron
 	private const JOB_PROGRESS_ENDPOINT = '/progress-job';
 	private const JOB_FINISH_ENDPOINT = '/finish-job';
 	private const JOB_FAIL_ENDPOINT = '/fail-job';
-	
+	private const LOG_ENDPOINT = '/log';
+
 	private string $url;
 	
 	private string $apiKey;
@@ -109,6 +110,17 @@ class Cron
 		$this->send($this->getUrl() . self::JOB_FAIL_ENDPOINT, $params);
 	}
 
+	/**
+	 * @param array<mixed> $data
+	 * @param string $level
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 */
+	public function log(array $data, string $level): void
+	{
+		$params = $data + ['level' => $level];
+		$this->send($this->getUrl() . self::LOG_ENDPOINT, $params);
+	}
+
 	protected function shutdownFunction(): void
 	{
 		Debugger::log('Server shutdown');
@@ -150,6 +162,7 @@ class Cron
 				'Accept' => 'application/json',
 				'Content-Type' => 'application/json',
 			],
+			'timeout' => 5,
 		];
 		
 		$client->post($url, $options);
