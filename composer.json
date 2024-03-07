@@ -14,7 +14,7 @@
         "tracy/tracy": "^2.0",
         "nette/di": "~3.0",
         "guzzlehttp/guzzle": "^7.0",
-      "ext-bcmath": "*"
+        "ext-bcmath": "*"
     },
     "require-dev": {
         "nette/tester": "^2.0",
@@ -54,5 +54,5 @@
             "dealerdirect/phpcodesniffer-composer-installer": true
         }
     },
-    "version": "1.0.1"
+    "version": "1.0.2"
 }

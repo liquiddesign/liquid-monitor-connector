@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.2](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.1...v1.0.2) (2024-03-07)
+
+### Features
+
+* New logger ([efdca2](https://github.com/liquiddesign/liquid-monitor-connector/commit/efdca2a156742390b2f87cbff5cf5662d3b3e081))
+
+
+---
+
 ## [1.0.1](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.0...v1.0.1) (2024-03-06)
 
 ### Features
