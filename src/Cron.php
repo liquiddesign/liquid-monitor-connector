@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LiquidMonitorConnector;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\GuzzleException;
 use Nette\Http\Request;
 use Nette\Utils\Json;
 use Tracy\Debugger;
@@ -57,7 +58,11 @@ class Cron
 			return true;
 		}
 
-		$this->scheduleJob($cronId);
+		try {
+			$this->scheduleJob($cronId);
+		} catch (\Exception $e) {
+			return true;
+		}
 
 		return false;
 	}
@@ -65,7 +70,7 @@ class Cron
 	public function scheduleJob(int $cronId): void
 	{
 		$params = ['cronId' => $cronId, 'timeout' => (int) \ini_get('max_execution_time')];
-		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params);
+		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params, true);
 	}
 
 	/**
@@ -74,7 +79,7 @@ class Cron
 	 */
 	public function startJob(?array $data = null): void
 	{
-//		\register_shutdown_function([$this, 'shutdownFunction']);
+		\register_shutdown_function([$this, 'shutdownFunction']);
 		
 		$params = ['data' => $data];
 		$this->send($this->getUrl() . self::JOB_START_ENDPOINT, $params);
@@ -151,7 +156,7 @@ class Cron
 	 * @param array<string, mixed> $params
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	private function send(string $url, array $params): void
+	private function send(string $url, array $params, bool $throw = false): void
 	{
 		$client = new Client();
 		
@@ -164,7 +169,13 @@ class Cron
 			],
 			'timeout' => 5,
 		];
-		
-		$client->post($url, $options);
+
+		try {
+			$client->post($url, $options);
+		} catch (GuzzleException $e) {
+			if ($throw) {
+				throw $e;
+			}
+		}
 	}
 }
