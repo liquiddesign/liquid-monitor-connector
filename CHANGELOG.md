@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.3](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.2...v1.0.3) (2024-03-07)
+
+### Features
+
+* Try catch requests ([0a5f03](https://github.com/liquiddesign/liquid-monitor-connector/commit/0a5f03bb16efd11bba8820bf6b6ed974c54b5e5e))
+
+
+---
+
 ## [1.0.2](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.1...v1.0.2) (2024-03-07)
 
 ### Features
