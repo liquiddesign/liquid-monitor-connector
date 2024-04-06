@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.5](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.4...v1.0.5) (2024-04-06)
+
+### Features
+
+* Add to default levels ILogger::INFO ([8c5a22](https://github.com/liquiddesign/liquid-monitor-connector/commit/8c5a22d0db400af0af5b8a093c2b0b52d179dd5b))
+
+
+---
+
 ## [1.0.4](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.3...v1.0.4) (2024-03-07)
 
 
