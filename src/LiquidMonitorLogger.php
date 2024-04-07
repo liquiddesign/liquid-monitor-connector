@@ -45,10 +45,10 @@ class LiquidMonitorLogger extends Logger
 			return $result;
 		}
 
-		[$message, $data] = $this->parseMessage($message);
+		[$message, $data, $code] = $this->parseMessage($message);
 
 		try {
-			$this->sendToLogger($message, $level, $data);
+			$this->sendToLogger($message, $level, $data, $code);
 		} catch (\Exception $e) {
 			parent::log($e, ILogger::EXCEPTION);
 		}
@@ -56,7 +56,7 @@ class LiquidMonitorLogger extends Logger
 		return $result;
 	}
 
-	public function sendToLogger(string $message, string $level, string|null $data = null): void
+	public function sendToLogger(string $message, string $level, string|null $data = null, int|null $code = null): void
 	{
 		$this->cron->log([
 			'title' => $this->title,
@@ -68,6 +68,7 @@ class LiquidMonitorLogger extends Logger
 			// phpcs:ignore
 			'duration' => (int) ((\microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']) * 1000),
 			'memory_usage' => $this->getCurrentMemoryUsage(),
+			'code' => $code,
 		], $level);
 	}
 
@@ -78,11 +79,13 @@ class LiquidMonitorLogger extends Logger
 
 	/**
 	 * @param mixed $message
-	 * @return array{0: string, 1: string|null}
+	 * @return array{0: string, 1: string|null, 2: int|null}
 	 */
 	private function parseMessage($message): array
 	{
 		$data = null;
+		/** @var int|null $code */
+		$code = null;
 
 		if ($message instanceof \Throwable) {
 			$data = [
@@ -91,11 +94,25 @@ class LiquidMonitorLogger extends Logger
 				'line' => $message->getLine(),
 			];
 
-			$message = $message->getMessage() . ' #' . $message->getCode();
+			/** @var int $code */
+			$code = $message->getCode();
+			$message = $message->getMessage();
 		} elseif (\is_array($message)) {
-			$data = $message;
+			$trace = \debug_backtrace();
+
+			$data = [
+				'message' => $message,
+				'trace' => \array_slice($trace, 2),
+			];
+
 			$message = (string) Arrays::first($message);
 		} else {
+			$trace = \debug_backtrace();
+
+			$data = [
+				'trace' => \array_slice($trace, 2),
+			];
+
 			$message = (string) $message;
 		}
 
@@ -103,6 +120,6 @@ class LiquidMonitorLogger extends Logger
 			$message = Strings::substring($message, 0, self::MAX_MESSAGE_LENGTH);
 		}
 
-		return [$message, $data ? Json::encode($data) : null];
+		return [$message, Json::encode($data), $code];
 	}
 }
