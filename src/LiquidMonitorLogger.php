@@ -56,7 +56,7 @@ class LiquidMonitorLogger extends Logger
 		return $result;
 	}
 
-	public function sendToLogger(string $message, string $level, string|null $data = null, int|null $code = null): void
+	public function sendToLogger(string $message, string $level, string|null $data = null, string|null $code = null): void
 	{
 		$this->cron->log([
 			'title' => $this->title,
