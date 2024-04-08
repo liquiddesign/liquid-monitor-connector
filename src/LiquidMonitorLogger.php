@@ -56,7 +56,7 @@ class LiquidMonitorLogger extends Logger
 		return $result;
 	}
 
-	public function sendToLogger(string $message, string $level, string|null $data = null, string|null $code = null): void
+	public function sendToLogger(string $message, string $level, string|null $data = null, string|int|null $code = null): void
 	{
 		$this->cron->log([
 			'title' => $this->title,
@@ -79,12 +79,10 @@ class LiquidMonitorLogger extends Logger
 
 	/**
 	 * @param mixed $message
-	 * @return array{0: string, 1: string|null, 2: int|null}
+	 * @return array{0: string, 1: string|null, 2: string|int|null}
 	 */
 	private function parseMessage($message): array
 	{
-		$data = null;
-		/** @var int|null $code */
 		$code = null;
 
 		if ($message instanceof \Throwable) {
@@ -94,7 +92,6 @@ class LiquidMonitorLogger extends Logger
 				'line' => $message->getLine(),
 			];
 
-			/** @var int $code */
 			$code = $message->getCode();
 			$message = $message->getMessage();
 		} elseif (\is_array($message)) {
