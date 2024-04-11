@@ -117,6 +117,12 @@ class LiquidMonitorLogger extends Logger
 			$message = Strings::substring($message, 0, self::MAX_MESSAGE_LENGTH);
 		}
 
-		return [$message, Json::encode($data), $code];
+		try {
+			$data = Json::encode($data);
+		} catch (\Exception) {
+			$data = null;
+		}
+
+		return [$message, $data, $code];
 	}
 }
