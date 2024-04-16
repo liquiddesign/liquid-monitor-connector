@@ -4,6 +4,18 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.10](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.9...v1.0.10) (2024-04-16)
+
+### Bug Fixes
+
+
+##### Logger
+
+* Cast code to string, try json decode ([d49f45](https://github.com/liquiddesign/liquid-monitor-connector/commit/d49f45334ab33ab9873f5404587356d790986e82))
+
+
+---
+
 ## [1.0.9](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.8...v1.0.9) (2024-04-11)
 
 ### Bug Fixes
