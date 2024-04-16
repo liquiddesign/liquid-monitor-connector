@@ -8,6 +8,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use Nette\Http\Request;
 use Nette\Utils\Json;
+use Nette\Utils\JsonException;
 use Tracy\Debugger;
 
 class Cron
@@ -35,8 +36,12 @@ class Cron
 		if (!$this->httpRequest->getRawBody()) {
 			return null;
 		}
-		
-		return Json::decode($this->httpRequest->getRawBody());
+
+		try {
+			return Json::decode($this->httpRequest->getRawBody());
+		} catch (JsonException $e) {
+			return null;
+		}
 	}
 	
 	public function setConfiguration(string $url, string $apiKey): void

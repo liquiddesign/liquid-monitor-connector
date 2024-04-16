@@ -68,7 +68,7 @@ class LiquidMonitorLogger extends Logger
 			// phpcs:ignore
 			'duration' => (int) ((\microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']) * 1000),
 			'memory_usage' => $this->getCurrentMemoryUsage(),
-			'code' => $code,
+			'code' => (string) $code,
 		], $level);
 	}
 
