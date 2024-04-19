@@ -51,11 +51,11 @@ class Cron
 	}
 
 	/**
-	 * @param int $cronId
+	 * @param string $cronId
 	 * @param array<mixed>|null $data
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function scheduleOrStartJob(int $cronId, ?array $data = null): bool
+	public function scheduleOrStartJob(string $cronId, ?array $data = null): bool
 	{
 		if ($this->getJobId()) {
 			$this->startJob($data);
@@ -72,7 +72,7 @@ class Cron
 		return false;
 	}
 	
-	public function scheduleJob(int $cronId): void
+	public function scheduleJob(string $cronId): void
 	{
 		$params = ['cronId' => $cronId, 'timeout' => (int) \ini_get('max_execution_time')];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params, true);
@@ -137,13 +137,13 @@ class Cron
 		$this->failJob(data: ['reason' => 'Server shutdown']);
 	}
 
-	private function getJobId(): int|null
+	private function getJobId(): string|null
 	{
 		if (!$this->getParameters() || !isset($this->getParameters()->jobId)) {
 			return null;
 		}
 		
-		return (int) $this->getParameters()->jobId;
+		return (string) $this->getParameters()->jobId;
 	}
 	
 	private function getUrl(): string
