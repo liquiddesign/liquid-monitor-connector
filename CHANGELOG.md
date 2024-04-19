@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.11](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.10...v1.0.11) (2024-04-19)
+
+### Features
+
+* Change JobId to be string ([850a8b](https://github.com/liquiddesign/liquid-monitor-connector/commit/850a8b22d48eab9ee18237fb907a32c593828273))
+
+
+---
+
 ## [1.0.10](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.9...v1.0.10) (2024-04-16)
 
 ### Bug Fixes
