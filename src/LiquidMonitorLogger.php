@@ -95,7 +95,7 @@ class LiquidMonitorLogger extends Logger
 			$code = $message->getCode();
 			$message = $message->getMessage();
 		} elseif (\is_array($message)) {
-			$trace = \debug_backtrace();
+			$trace = \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS);
 
 			$data = [
 				'message' => $message,
@@ -104,7 +104,7 @@ class LiquidMonitorLogger extends Logger
 
 			$message = (string) Arrays::first($message);
 		} else {
-			$trace = \debug_backtrace();
+			$trace = \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS);
 
 			$data = [
 				'trace' => \array_slice($trace, 2),
