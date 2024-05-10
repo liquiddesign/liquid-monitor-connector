@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.14](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.13...v1.0.14) (2024-05-10)
+
+### Features
+
+* Disable debug_backtrace ([cce74f](https://github.com/liquiddesign/liquid-monitor-connector/commit/cce74f1689ceb8bf01f47fe9e62a3f8239b69d9a))
+
+
+---
+
 ## [1.0.13](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.12...v1.0.13) (2024-05-02)
 
 ### Bug Fixes
