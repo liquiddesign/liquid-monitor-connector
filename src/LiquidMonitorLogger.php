@@ -50,7 +50,7 @@ class LiquidMonitorLogger extends Logger
 		try {
 			$this->sendToLogger($message, $level, $data, $code);
 		} catch (\Exception $e) {
-			parent::log($e, ILogger::EXCEPTION);
+			parent::log($e, ILogger::CRITICAL);
 		}
 
 		return $result;
