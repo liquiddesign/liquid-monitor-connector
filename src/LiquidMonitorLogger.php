@@ -95,19 +95,19 @@ class LiquidMonitorLogger extends Logger
 			$code = $message->getCode();
 			$message = $message->getMessage();
 		} elseif (\is_array($message)) {
-			$trace = \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS);
+//			$trace = \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS);
 
 			$data = [
 				'message' => $message,
-				'trace' => \array_slice($trace, 2),
+//				'trace' => \array_slice($trace, 2),
 			];
 
 			$message = (string) Arrays::first($message);
 		} else {
-			$trace = \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS);
+//			$trace = \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS);
 
 			$data = [
-				'trace' => \array_slice($trace, 2),
+//				'trace' => \array_slice($trace, 2),
 			];
 
 			$message = (string) $message;
