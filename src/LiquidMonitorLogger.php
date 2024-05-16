@@ -99,7 +99,7 @@ class LiquidMonitorLogger extends Logger
 
 			$data = [
 				'message' => $message,
-				'trace' => \array_slice($trace, 2),
+				'trace' => \print_r(\array_slice($trace, 2), true),
 			];
 
 			$message = (string) Arrays::first($message);
@@ -107,7 +107,7 @@ class LiquidMonitorLogger extends Logger
 			$trace = \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS);
 
 			$data = [
-				'trace' => \array_slice($trace, 2),
+				'trace' => \print_r(\array_slice($trace, 2), true),
 			];
 
 			$message = (string) $message;
