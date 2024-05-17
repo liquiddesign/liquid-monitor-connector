@@ -133,7 +133,6 @@ class Cron
 
 	protected function shutdownFunction(): void
 	{
-		Debugger::log('Server shutdown');
 		$this->failJob(data: ['reason' => 'Server shutdown']);
 	}
 
