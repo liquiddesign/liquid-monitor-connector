@@ -9,7 +9,6 @@ use GuzzleHttp\Exception\GuzzleException;
 use Nette\Http\Request;
 use Nette\Utils\Json;
 use Nette\Utils\JsonException;
-use Tracy\Debugger;
 
 class Cron
 {
