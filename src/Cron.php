@@ -9,6 +9,8 @@ use GuzzleHttp\Exception\GuzzleException;
 use Nette\Http\Request;
 use Nette\Utils\Json;
 use Nette\Utils\JsonException;
+use Tracy\Debugger;
+use Tracy\ILogger;
 
 class Cron
 {
@@ -65,6 +67,8 @@ class Cron
 		try {
 			$this->scheduleJob($cronId);
 		} catch (\Exception $e) {
+			Debugger::log($e, ILogger::EXCEPTION);
+
 			return true;
 		}
 
