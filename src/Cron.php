@@ -58,6 +58,10 @@ class Cron
 	 */
 	public function scheduleOrStartJob(string $cronId, ?array $data = null): bool
 	{
+		if ($this->getSkipMonitorParameter()) {
+			return false;
+		}
+
 		if ($this->getJobId()) {
 			$this->startJob($data);
 
@@ -139,13 +143,22 @@ class Cron
 		$this->failJob(data: ['reason' => 'Server shutdown']);
 	}
 
-	private function getJobId(): string|null
+	protected function getJobId(): string|null
 	{
 		if (!$this->getParameters() || !isset($this->getParameters()->jobId)) {
 			return null;
 		}
 		
 		return (string) $this->getParameters()->jobId;
+	}
+
+	protected function getSkipMonitorParameter(): bool
+	{
+		if (!$this->getParameters() || !isset($this->getParameters()->skipMonitor)) {
+			return false;
+		}
+
+		return (bool) $this->getParameters()->skipMonitor;
 	}
 	
 	private function getUrl(): string
@@ -157,11 +170,11 @@ class Cron
 	{
 		return $this->apiKey;
 	}
-	
+
 	/**
 	 * @param string $url
 	 * @param array<string, mixed> $params
-	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 * @param bool $throw
 	 */
 	private function send(string $url, array $params, bool $throw = false): void
 	{
