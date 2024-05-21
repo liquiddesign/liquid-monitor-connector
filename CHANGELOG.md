@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.18](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.17...v1.0.18) (2024-05-21)
+
+### Features
+
+* Add skipMonitor parameter ([c7b81d](https://github.com/liquiddesign/liquid-monitor-connector/commit/c7b81dc593bde8e28db5b84040228a6697e6f92d))
+
+
+---
+
 ## [1.0.17](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.16...v1.0.17) (2024-05-17)
 
 ### Features
