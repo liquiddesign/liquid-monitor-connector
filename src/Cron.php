@@ -53,10 +53,10 @@ class Cron
 
 	/**
 	 * @param string $cronId
-	 * @param array<mixed>|null $data
+	 * @param array<mixed>|null|\Exception $data
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function scheduleOrStartJob(string $cronId, ?array $data = null): bool
+	public function scheduleOrStartJob(string $cronId, array|\Exception|null $data = null): bool
 	{
 		if ($this->getSkipMonitorParameter()) {
 			return false;
@@ -86,44 +86,44 @@ class Cron
 	}
 
 	/**
-	 * @param array<mixed>|null $data
+	 * @param array<mixed>|null|\Exception $data
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function startJob(?array $data = null): void
+	public function startJob(array|\Exception|null $data = null): void
 	{
 		\register_shutdown_function([$this, 'shutdownFunction']);
 		
-		$params = ['data' => $data];
+		$params = ['data' => $this->processData($data)];
 		$this->send($this->getUrl() . self::JOB_START_ENDPOINT, $params);
 	}
 
 	/**
-	 * @param array<mixed>|null $data
+	 * @param array<mixed>|null|\Exception $data
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function finishJob(?array $data = null): void
+	public function finishJob(array|\Exception|null $data = null): void
 	{
-		$params = ['data' => $data];
+		$params = ['data' => $this->processData($data)];
 		$this->send($this->getUrl() . self::JOB_FINISH_ENDPOINT, $params);
 	}
 
 	/**
-	 * @param array<mixed>|null $data
+	 * @param array<mixed>|null|\Exception $data
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function progressJob(?array $data = null): void
+	public function progressJob(array|\Exception|null $data = null): void
 	{
-		$params = ['data' => $data];
+		$params = ['data' => $this->processData($data)];
 		$this->send($this->getUrl() . self::JOB_PROGRESS_ENDPOINT, $params);
 	}
 
 	/**
-	 * @param array<mixed>|null $data
+	 * @param array<mixed>|null|\Exception $data
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function failJob(?array $data = null): void
+	public function failJob(array|\Exception|null $data = null): void
 	{
-		$params = ['data' => $data];
+		$params = ['data' => $this->processData($data)];
 		$this->send($this->getUrl() . self::JOB_FAIL_ENDPOINT, $params);
 	}
 
@@ -136,6 +136,27 @@ class Cron
 	{
 		$params = $data + ['level' => $level];
 		$this->send($this->getUrl() . self::LOG_ENDPOINT, $params);
+	}
+
+	/**
+	 * @param array<mixed>|\Exception|null $data
+	 * @return array<mixed>|null
+	 */
+	protected function processData(array|null|\Exception $data): array|null
+	{
+		if (!$data) {
+			return null;
+		}
+
+		if ($data instanceof \Exception) {
+			return ['exception' => $data->getMessage(), 'trace' => $data->getTraceAsString()];
+		}
+
+		if (\is_array($data)) {
+			return $data;
+		}
+
+		return null;
 	}
 
 	protected function shutdownFunction(): void
