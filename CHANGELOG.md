@@ -4,6 +4,20 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.19](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.18...v1.0.19) (2024-05-25)
+
+### Features
+
+* Allow to pass Exception to Cron logging methods ([7ae0fd](https://github.com/liquiddesign/liquid-monitor-connector/commit/7ae0fda6df8b1e5c36f300f0948e7acb38cd7d8c))
+
+##### Liquid Monitor Logger DI
+
+* New check if LiquidMonitorConnector is registered, title is optional ([de9acc](https://github.com/liquiddesign/liquid-monitor-connector/commit/de9accbd60e54b635545a4e9d548d9884fc82df5))
+* Title is optional ([84ef16](https://github.com/liquiddesign/liquid-monitor-connector/commit/84ef16c500466a870e6401cc8e952b4982748b80))
+
+
+---
+
 ## [1.0.18](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.17...v1.0.18) (2024-05-21)
 
 ### Features
