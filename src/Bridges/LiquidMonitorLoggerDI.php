@@ -6,6 +6,7 @@ namespace LiquidMonitorConnector\Bridges;
 
 use LiquidMonitorConnector\LiquidMonitorLogger;
 use Nette\DI\Definitions\ServiceDefinition;
+use Nette\DI\MissingServiceException;
 use Nette\Schema\Expect;
 use Nette\Schema\Schema;
 use Tracy\ILogger;
@@ -15,7 +16,7 @@ class LiquidMonitorLoggerDI extends \Nette\DI\CompilerExtension
 	public function getConfigSchema(): Schema
 	{
 		return Expect::structure([
-			'title' => Expect::string()->required(),
+			'title' => Expect::string(),
 			'freezeInterval' => Expect::string('24 hours'),
 			'levels' => Expect::array([ILogger::ERROR, ILogger::EXCEPTION, ILogger::CRITICAL, ILogger::WARNING, ILogger::INFO]),
 			'omitExceptions' => Expect::array([]),
@@ -28,6 +29,10 @@ class LiquidMonitorLoggerDI extends \Nette\DI\CompilerExtension
 		$config = $this->getConfig();
 		
 		$builder = $this->getContainerBuilder();
+
+		if (!$builder->hasDefinition('liquidMonitorConnector')) {
+			throw new MissingServiceException('LiquidMonitorLogger: LiquidMonitorConnector extension is not registered.');
+		};
 		
 		$builder->removeDefinition('tracy.logger');
 		
