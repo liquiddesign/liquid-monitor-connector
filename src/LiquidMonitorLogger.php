@@ -15,7 +15,7 @@ class LiquidMonitorLogger extends Logger
 {
 	private const MAX_MESSAGE_LENGTH = 4850;
 
-	private string $title;
+	private string|null $title;
 
 	/**
 	 * @var array<string>
@@ -31,7 +31,7 @@ class LiquidMonitorLogger extends Logger
 	 * @param string $title
 	 * @param array<string> $levels
 	 */
-	public function setProperties(string $title, array $levels): void
+	public function setProperties(string|null $title, array $levels): void
 	{
 		$this->title = $title;
 		$this->levels = $levels;

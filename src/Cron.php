@@ -152,11 +152,7 @@ class Cron
 			return ['exception' => $data->getMessage(), 'trace' => $data->getTraceAsString()];
 		}
 
-		if (\is_array($data)) {
-			return $data;
-		}
-
-		return null;
+		return $data;
 	}
 
 	protected function shutdownFunction(): void

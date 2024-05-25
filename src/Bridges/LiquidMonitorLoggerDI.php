@@ -32,7 +32,7 @@ class LiquidMonitorLoggerDI extends \Nette\DI\CompilerExtension
 
 		if (!$builder->hasDefinition('liquidMonitorConnector')) {
 			throw new MissingServiceException('LiquidMonitorLogger: LiquidMonitorConnector extension is not registered.');
-		};
+		}
 		
 		$builder->removeDefinition('tracy.logger');
 		
