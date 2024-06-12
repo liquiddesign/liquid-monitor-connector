@@ -4,6 +4,18 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.20](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.19...v1.0.20) (2024-06-12)
+
+### Features
+
+
+##### Liquid Monitor Logger
+
+* New trace formats ([ff03d2](https://github.com/liquiddesign/liquid-monitor-connector/commit/ff03d2a11d09a0d778e1f11d24a3f1f9d0768793))
+
+
+---
+
 ## [1.0.19](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.18...v1.0.19) (2024-05-25)
 
 ### Features
