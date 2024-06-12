@@ -2,6 +2,7 @@
 
 namespace LiquidMonitorConnector;
 
+use LiquidMonitorConnector\Tasks\ExceptionToJsonArray;
 use Nette\Http\Request;
 use Nette\Http\RequestFactory;
 use Nette\Utils\Arrays;
@@ -86,19 +87,7 @@ class LiquidMonitorLogger extends Logger
 		$code = null;
 
 		if ($message instanceof \Throwable) {
-			$traceString = $message->getTraceAsString();
-			$traces = \explode("\n", $traceString);
-			$jsonTraces = [];
-
-			foreach ($traces as $trace) {
-				$jsonTraces[] = Strings::trim($trace);
-			}
-
-			$data = [
-				'trace' => $jsonTraces,
-				'file' => $message->getFile(),
-				'line' => $message->getLine(),
-			];
+			$data = ExceptionToJsonArray::getArray($message);
 
 			$code = $message->getCode();
 			$message = $message->getMessage();

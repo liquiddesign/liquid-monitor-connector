@@ -6,6 +6,7 @@ namespace LiquidMonitorConnector;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use LiquidMonitorConnector\Tasks\ExceptionToJsonArray;
 use Nette\Http\Request;
 use Nette\Utils\Json;
 use Nette\Utils\JsonException;
@@ -149,7 +150,7 @@ class Cron
 		}
 
 		if ($data instanceof \Exception) {
-			return ['exception' => $data->getMessage(), 'trace' => $data->getTraceAsString()];
+			return ['exception' => $data->getMessage(), 'trace' => ExceptionToJsonArray::getTraces($data)];
 		}
 
 		return $data;
