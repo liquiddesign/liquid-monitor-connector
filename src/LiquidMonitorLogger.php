@@ -86,8 +86,16 @@ class LiquidMonitorLogger extends Logger
 		$code = null;
 
 		if ($message instanceof \Throwable) {
+			$traceString = $message->getTraceAsString();
+			$traces = \explode("\n", $traceString);
+			$jsonTraces = [];
+
+			foreach ($traces as $trace) {
+				$jsonTraces[] = Strings::trim($trace);
+			}
+
 			$data = [
-				'trace' => $message->getTraceAsString(),
+				'trace' => $jsonTraces,
 				'file' => $message->getFile(),
 				'line' => $message->getLine(),
 			];
@@ -99,7 +107,7 @@ class LiquidMonitorLogger extends Logger
 
 			$data = [
 				'message' => $message,
-				'trace' => \print_r(\array_slice($trace, 2), true),
+				'trace' => \array_slice($trace, 2),
 			];
 
 			$message = (string) Arrays::first($message);
@@ -107,7 +115,7 @@ class LiquidMonitorLogger extends Logger
 			$trace = \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS);
 
 			$data = [
-				'trace' => \print_r(\array_slice($trace, 2), true),
+				'trace' => \array_slice($trace, 2),
 			];
 
 			$message = (string) $message;
