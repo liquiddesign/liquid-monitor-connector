@@ -4,6 +4,18 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.21](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.20...v1.0.21) (2024-06-12)
+
+### Features
+
+
+##### Liquid Monitor Logger
+
+* Move code to new class, add formating to Cron ([1026e4](https://github.com/liquiddesign/liquid-monitor-connector/commit/1026e4cf1406ea1589f76927b510d1ea44ef4757))
+
+
+---
+
 ## [1.0.20](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.19...v1.0.20) (2024-06-12)
 
 ### Features
