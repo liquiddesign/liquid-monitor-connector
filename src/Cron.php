@@ -53,11 +53,13 @@ class Cron
 	}
 
 	/**
-	 * @param string $cronId
+	 * Schedule Cron if no POST data otherwise start Cron.
+	 * @param string $cronCode
 	 * @param array<mixed>|null|\Exception $data
+	 * @param string|null $cronName If not null and Cron does not exist, create Cron.
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function scheduleOrStartJob(string $cronId, array|\Exception|null $data = null): bool
+	public function scheduleOrStartJob(string $cronCode, array|\Exception|null $data = null, string|null $cronName = null): bool
 	{
 		if ($this->getSkipMonitorParameter()) {
 			return false;
@@ -70,7 +72,7 @@ class Cron
 		}
 
 		try {
-			$this->scheduleJob($cronId);
+			$this->scheduleJob($cronCode, $cronName);
 		} catch (\Exception $e) {
 			Debugger::log($e, ILogger::EXCEPTION);
 
@@ -80,10 +82,10 @@ class Cron
 		return false;
 	}
 	
-	public function scheduleJob(string $cronId): void
+	public function scheduleJob(string $cronId, string|null $cronName = null): void
 	{
-		$params = ['cronId' => $cronId, 'timeout' => (int) \ini_get('max_execution_time')];
-		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params, true);
+		$params = ['cronId' => $cronId, 'timeout' => (int) \ini_get('max_execution_time'), 'cronName' => $cronName, 'cronUrl' => $this->httpRequest->getUrl()];
+		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params);
 	}
 
 	/**
@@ -211,6 +213,8 @@ class Cron
 		try {
 			$client->post($url, $options);
 		} catch (GuzzleException $e) {
+			Debugger::log($e, ILogger::EXCEPTION);
+
 			if ($throw) {
 				throw $e;
 			}
