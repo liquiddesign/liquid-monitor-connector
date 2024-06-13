@@ -4,6 +4,18 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.22](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.21...v1.0.22) (2024-06-13)
+
+### Features
+
+
+##### Cron
+
+* ScheduleOrStartJob can create Cron if not exists, throw exceptions ([edba52](https://github.com/liquiddesign/liquid-monitor-connector/commit/edba52deacd169f09aeb7e0cf032cee75d4ebeaf))
+
+
+---
+
 ## [1.0.21](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.20...v1.0.21) (2024-06-12)
 
 ### Features
