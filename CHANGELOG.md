@@ -4,6 +4,18 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.24](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.23...v1.0.24) (2024-06-14)
+
+### Features
+
+
+##### DI
+
+* Remove unused options ([d8a74b](https://github.com/liquiddesign/liquid-monitor-connector/commit/d8a74bb2468a3fed7f3793518c33feccf9893761))
+
+
+---
+
 ## [1.0.23](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.22...v1.0.23) (2024-06-14)
 
 ### Features
