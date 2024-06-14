@@ -4,6 +4,18 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.23](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.22...v1.0.23) (2024-06-14)
+
+### Features
+
+
+##### DI
+
+* New options, apiKey not required ([61a20a](https://github.com/liquiddesign/liquid-monitor-connector/commit/61a20ad315dd9d13ed33fd9a0617b82038b5ee0c))
+
+
+---
+
 ## [1.0.22](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.21...v1.0.22) (2024-06-13)
 
 ### Features
