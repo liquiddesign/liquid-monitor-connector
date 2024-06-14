@@ -15,7 +15,8 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 	{
 		return Expect::structure([
 			'url' => Expect::string()->required(),
-			'apiKey' => Expect::string()->required(),
+			'apiKey' => Expect::string(null),
+			'enabled' => Expect::bool(true),
 		]);
 	}
 	
@@ -27,6 +28,6 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 		$builder = $this->getContainerBuilder();
 		
 		$cron = $builder->addDefinition('liquidMonitorConnector')->setType(Cron::class);
-		$cron->addSetup('setConfiguration', [$config->url, $config->apiKey]);
+		$cron->addSetup('setConfiguration', [$config->url, $config->apiKey, $config->enabled]);
 	}
 }

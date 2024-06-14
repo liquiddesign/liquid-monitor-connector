@@ -24,8 +24,10 @@ class Cron
 
 	private string $url;
 	
-	private string $apiKey;
-	
+	private string|null $apiKey;
+
+	private bool $enabled;
+
 	private Request $httpRequest;
 	
 	public function __construct(Request $httpRequest)
@@ -46,10 +48,11 @@ class Cron
 		}
 	}
 	
-	public function setConfiguration(string $url, string $apiKey): void
+	public function setConfiguration(string $url, string|null $apiKey, bool $enabled): void
 	{
 		$this->url = $url;
 		$this->apiKey = $apiKey;
+		$this->enabled = $enabled;
 	}
 
 	/**
@@ -141,6 +144,11 @@ class Cron
 		$this->send($this->getUrl() . self::LOG_ENDPOINT, $params);
 	}
 
+	public function isEnabled(): bool
+	{
+		return $this->enabled;
+	}
+
 	/**
 	 * @param array<mixed>|\Exception|null $data
 	 * @return array<mixed>|null
@@ -186,7 +194,7 @@ class Cron
 		return $this->url;
 	}
 	
-	private function getApiKey(): string
+	private function getApiKey(): string|null
 	{
 		return $this->apiKey;
 	}
@@ -199,9 +207,14 @@ class Cron
 	private function send(string $url, array $params, bool $throw = false): void
 	{
 		$client = new Client();
-		
+		$apiKey = $this->getApiKey();
+
+		if (!$apiKey || !$this->isEnabled()) {
+			return;
+		}
+
 		$options = [
-			'json' => ['apiKey' => $this->getApiKey(), 'jobId' => $this->getJobId()] + $params,
+			'json' => ['apiKey' => $apiKey, 'jobId' => $this->getJobId()] + $params,
 			'verify' => false,
 			'headers' => [
 				'Accept' => 'application/json',

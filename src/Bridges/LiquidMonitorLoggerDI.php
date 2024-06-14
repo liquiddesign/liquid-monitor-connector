@@ -18,7 +18,7 @@ class LiquidMonitorLoggerDI extends \Nette\DI\CompilerExtension
 		return Expect::structure([
 			'title' => Expect::string(),
 			'freezeInterval' => Expect::string('24 hours'),
-			'levels' => Expect::array([ILogger::ERROR, ILogger::EXCEPTION, ILogger::CRITICAL, ILogger::WARNING, ILogger::INFO]),
+			'levels' => Expect::array([ILogger::ERROR, ILogger::EXCEPTION, ILogger::CRITICAL, ILogger::WARNING, ILogger::INFO])->mergeDefaults(false),
 			'omitExceptions' => Expect::array([]),
 		]);
 	}
@@ -27,7 +27,6 @@ class LiquidMonitorLoggerDI extends \Nette\DI\CompilerExtension
 	{
 		/** @var \stdClass $config */
 		$config = $this->getConfig();
-		
 		$builder = $this->getContainerBuilder();
 
 		if (!$builder->hasDefinition('liquidMonitorConnector')) {
