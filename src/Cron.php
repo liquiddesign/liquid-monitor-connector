@@ -88,7 +88,7 @@ class Cron
 	public function scheduleJob(string $cronId, string|null $cronName = null): void
 	{
 		$params = ['cronId' => $cronId, 'timeout' => (int) \ini_get('max_execution_time'), 'cronName' => $cronName, 'cronUrl' => $this->httpRequest->getUrl()];
-		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params);
+		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params, true);
 	}
 
 	/**
@@ -210,7 +210,7 @@ class Cron
 		$apiKey = $this->getApiKey();
 
 		if (!$apiKey || !$this->isEnabled()) {
-			return;
+			throw new \Exception('LiquidMonitor is disabled');
 		}
 
 		$options = [
