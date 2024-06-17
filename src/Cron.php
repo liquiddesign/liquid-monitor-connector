@@ -210,7 +210,11 @@ class Cron
 		$apiKey = $this->getApiKey();
 
 		if (!$apiKey || !$this->isEnabled()) {
-			throw new \Exception('LiquidMonitor is disabled');
+			if ($throw) {
+				throw new \Exception('LiquidMonitor is disabled');
+			}
+
+			return;
 		}
 
 		$options = [
