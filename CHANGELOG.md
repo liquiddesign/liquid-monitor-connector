@@ -4,6 +4,18 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.26](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.25...v1.0.26) (2024-06-17)
+
+### Bug Fixes
+
+
+##### Cron
+
+* Add exception handling ([14bb9a](https://github.com/liquiddesign/liquid-monitor-connector/commit/14bb9a97381aa99314cbaa327c3d4763cd03873a))
+
+
+---
+
 ## [1.0.25](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.24...v1.0.25) (2024-06-17)
 
 ### Bug Fixes
