@@ -194,6 +194,15 @@ class Cron
 		return $this->enabled;
 	}
 
+	public function getJobId(): string|null
+	{
+		if (!$this->getParameters() || !isset($this->getParameters()->jobId)) {
+			return null;
+		}
+		
+		return (string) $this->getParameters()->jobId;
+	}
+
 	/**
 	 * @param array<mixed>|\Exception|null $data
 	 * @return array<mixed>|null
@@ -214,15 +223,6 @@ class Cron
 	protected function shutdownFunction(): void
 	{
 		$this->failJob(data: ['reason' => 'Server shutdown']);
-	}
-
-	protected function getJobId(): string|null
-	{
-		if (!$this->getParameters() || !isset($this->getParameters()->jobId)) {
-			return null;
-		}
-		
-		return (string) $this->getParameters()->jobId;
 	}
 
 	protected function getSkipMonitorParameter(): bool
