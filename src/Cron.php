@@ -142,6 +142,10 @@ class Cron
 	 */
 	public function finishJob(array|\Exception|null $data = null): void
 	{
+		if (!$this->getJobId()) {
+			return;
+		}
+
 		$params = ['data' => $this->processData($data)];
 		$this->send($this->getUrl() . self::JOB_FINISH_ENDPOINT, $params);
 	}
@@ -152,6 +156,10 @@ class Cron
 	 */
 	public function progressJob(array|\Exception|null $data = null): void
 	{
+		if (!$this->getJobId()) {
+			return;
+		}
+
 		$params = ['data' => $this->processData($data)];
 		$this->send($this->getUrl() . self::JOB_PROGRESS_ENDPOINT, $params);
 	}
@@ -162,6 +170,10 @@ class Cron
 	 */
 	public function failJob(array|\Exception|null $data = null): void
 	{
+		if (!$this->getJobId()) {
+			return;
+		}
+
 		$params = ['data' => $this->processData($data)];
 		$this->send($this->getUrl() . self::JOB_FAIL_ENDPOINT, $params);
 	}
