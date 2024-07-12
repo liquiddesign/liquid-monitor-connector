@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.27](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.26...v1.0.27) (2024-07-12)
+
+### Features
+
+* Add parameters for cron job scheduling and configuration ([daa5e6](https://github.com/liquiddesign/liquid-monitor-connector/commit/daa5e6495d20d6e558adb5e168ec460eebabac28))
+
+
+---
+
 ## [1.0.26](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.25...v1.0.26) (2024-06-17)
 
 ### Bug Fixes
