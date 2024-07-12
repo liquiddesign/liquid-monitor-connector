@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.29](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.28...v1.0.29) (2024-07-12)
+
+### Features
+
+* Make getJobId method public and add job progress logging ([670e6e](https://github.com/liquiddesign/liquid-monitor-connector/commit/670e6e90c90d279a4b3e6c7946d2256a8f9f1fd7))
+
+
+---
+
 ## [1.0.28](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.27...v1.0.28) (2024-07-12)
 
 ### Features
