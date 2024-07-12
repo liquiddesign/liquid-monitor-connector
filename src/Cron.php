@@ -62,8 +62,16 @@ class Cron
 	 * @param string|null $cronName If not null and Cron does not exist, create Cron.
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function scheduleOrStartJob(string $cronCode, array|\Exception|null $data = null, string|null $cronName = null): bool
-	{
+	public function scheduleOrStartJob(
+		string $cronCode,
+		array|\Exception|null $data = null,
+		string|null $cronName = null,
+		int $cronRepeatCount = 0,
+		bool $cronCanRunConcurrently = false,
+		bool $cronCanRunConcurrentlyCron = false,
+		string|null $cronDescription = null,
+		int|null $cronTimeout = null,
+	): bool {
 		if ($this->getSkipMonitorParameter()) {
 			return false;
 		}
@@ -75,7 +83,15 @@ class Cron
 		}
 
 		try {
-			$this->scheduleJob($cronCode, $cronName);
+			$this->scheduleJob(
+				$cronCode,
+				$cronName,
+				$cronRepeatCount,
+				$cronCanRunConcurrently,
+				$cronCanRunConcurrentlyCron,
+				$cronDescription,
+				$cronTimeout,
+			);
 		} catch (\Exception $e) {
 			Debugger::log($e, ILogger::EXCEPTION);
 
@@ -85,9 +101,26 @@ class Cron
 		return false;
 	}
 	
-	public function scheduleJob(string $cronId, string|null $cronName = null): void
-	{
-		$params = ['cronId' => $cronId, 'timeout' => (int) \ini_get('max_execution_time'), 'cronName' => $cronName, 'cronUrl' => $this->httpRequest->getUrl()];
+	public function scheduleJob(
+		string $cronId,
+		string|null $cronName = null,
+		int $cronRepeatCount = 0,
+		bool $cronCanRunConcurrently = false,
+		bool $cronCanRunConcurrentlyCron = false,
+		string|null $cronDescription = null,
+		int|null $cronTimeout = null,
+	): void {
+		$params = [
+			'cronId' => $cronId,
+			'timeout' => (int) \ini_get('max_execution_time'),
+			'cronName' => $cronName,
+			'cronUrl' => $this->httpRequest->getUrl(),
+			'cronRepeatCount' => $cronRepeatCount,
+			'cronCanRunConcurrently' => $cronCanRunConcurrently,
+			'cronCanRunConcurrentlyCron' => $cronCanRunConcurrentlyCron,
+			'cronDescription' => $cronDescription,
+			'cronTimeout' => $cronTimeout,
+		];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params, true);
 	}
 
