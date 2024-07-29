@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.30](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.29...v1.0.30) (2024-07-29)
+
+### Bug Fixes
+
+* Check if job ID exists before calling progressJob ([752b89](https://github.com/liquiddesign/liquid-monitor-connector/commit/752b8919d5bd82effcebc61c31845eb2ec3d8961))
+
+
+---
+
 ## [1.0.29](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.28...v1.0.29) (2024-07-12)
 
 ### Features
