@@ -47,7 +47,9 @@ class LiquidMonitorLogger extends Logger
 		}
 
 		// If cron is currently running, save this also as JobLogItem
-		$this->cron->progressJob($message);
+		if ($this->cron->getJobId()) {
+			$this->cron->progressJob($message);
+		}
 
 		[$message, $data, $code] = $this->parseMessage($message);
 
