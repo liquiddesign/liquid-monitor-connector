@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.31](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.30...v1.0.31) (2024-07-31)
+
+### Features
+
+* Allow string data in Cron job methods ([a2bb83](https://github.com/liquiddesign/liquid-monitor-connector/commit/a2bb83989651e9abaee2e8f05fcba5382dbe72cd))
+
+
+---
+
 ## [1.0.30](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.29...v1.0.30) (2024-07-29)
 
 ### Bug Fixes
