@@ -128,7 +128,7 @@ class Cron
 	 * @param array<mixed>|null|\Exception $data
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function startJob(array|\Exception|null $data = null): void
+	public function startJob(array|\Exception|null|string $data = null): void
 	{
 		\register_shutdown_function([$this, 'shutdownFunction']);
 		
@@ -140,7 +140,7 @@ class Cron
 	 * @param array<mixed>|null|\Exception $data
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function finishJob(array|\Exception|null $data = null): void
+	public function finishJob(array|\Exception|null|string $data = null): void
 	{
 		if (!$this->getJobId()) {
 			return;
@@ -154,7 +154,7 @@ class Cron
 	 * @param array<mixed>|null|\Exception $data
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function progressJob(array|\Exception|null $data = null): void
+	public function progressJob(array|\Exception|null|string $data = null): void
 	{
 		if (!$this->getJobId()) {
 			return;
@@ -168,7 +168,7 @@ class Cron
 	 * @param array<mixed>|null|\Exception $data
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function failJob(array|\Exception|null $data = null): void
+	public function failJob(array|\Exception|null|string $data = null): void
 	{
 		if (!$this->getJobId()) {
 			return;
@@ -207,7 +207,7 @@ class Cron
 	 * @param array<mixed>|\Exception|null $data
 	 * @return array<mixed>|null
 	 */
-	protected function processData(array|null|\Exception $data): array|null
+	protected function processData(array|null|\Exception|string $data): array|null
 	{
 		if (!$data) {
 			return null;
@@ -215,6 +215,10 @@ class Cron
 
 		if ($data instanceof \Exception) {
 			return ['exception' => $data->getMessage(), 'trace' => ExceptionToJsonArray::getTraces($data)];
+		}
+
+		if (\is_string($data)) {
+			return [$data];
 		}
 
 		return $data;
