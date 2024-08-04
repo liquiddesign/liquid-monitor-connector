@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.32](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.31...v1.0.32) (2024-08-04)
+
+### Features
+
+* Refactor WeakException and add weak flag to LiquidMonitorLogger ([d777c5](https://github.com/liquiddesign/liquid-monitor-connector/commit/d777c5140c9c6a63786542f69a4624c84e77b9f4))
+
+
+---
+
 ## [1.0.31](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.30...v1.0.31) (2024-07-31)
 
 ### Features
