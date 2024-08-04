@@ -2,6 +2,7 @@
 
 namespace LiquidMonitorConnector;
 
+use LiquidMonitorConnector\Exceptions\WeakException;
 use LiquidMonitorConnector\Tasks\ExceptionToJsonArray;
 use Nette\Http\Request;
 use Nette\Http\RequestFactory;
@@ -38,7 +39,7 @@ class LiquidMonitorLogger extends Logger
 		$this->levels = $levels;
 	}
 
-	public function log(mixed $message, string $level = \Tracy\ILogger::INFO): ?string
+	public function log(mixed $message, string $level = \Tracy\ILogger::INFO, bool $weak = false): ?string
 	{
 		$result = parent::log($message, $level);
 
@@ -51,10 +52,14 @@ class LiquidMonitorLogger extends Logger
 			$this->cron->progressJob($message);
 		}
 
+		if ($message instanceof WeakException) {
+			$weak = false;
+		}
+
 		[$message, $data, $code] = $this->parseMessage($message);
 
 		try {
-			$this->sendToLogger($message, $level, $data, $code);
+			$this->sendToLogger($message, $level, $data, $code, $weak);
 		} catch (\Exception $e) {
 			parent::log($e, ILogger::CRITICAL);
 		}
@@ -62,7 +67,7 @@ class LiquidMonitorLogger extends Logger
 		return $result;
 	}
 
-	public function sendToLogger(string $message, string $level, string|null $data = null, string|int|null $code = null): void
+	public function sendToLogger(string $message, string $level, string|null $data = null, string|int|null $code = null, bool $weak = false): void
 	{
 		$this->cron->log([
 			'title' => $this->title,
@@ -75,6 +80,7 @@ class LiquidMonitorLogger extends Logger
 			'duration' => (int) ((\microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']) * 1000),
 			'memory_usage' => $this->getCurrentMemoryUsage(),
 			'code' => (string) $code,
+			'weak' => $weak,
 		], $level);
 	}
 
