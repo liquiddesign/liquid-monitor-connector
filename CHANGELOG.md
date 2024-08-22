@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.33](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.32...v1.0.33) (2024-08-22)
+
+### Bug Fixes
+
+* Comment out cron job progress update to prevent infinite loop ([d5003f](https://github.com/liquiddesign/liquid-monitor-connector/commit/d5003f3c7d5ba0ec912e91f5c7c02738ab286b1e))
+
+
+---
+
 ## [1.0.32](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.31...v1.0.32) (2024-08-04)
 
 ### Features
