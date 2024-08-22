@@ -279,7 +279,7 @@ class Cron
 		try {
 			$client->post($url, $options);
 		} catch (GuzzleException $e) {
-			Debugger::log($e, ILogger::EXCEPTION);
+//			Debugger::log($e, ILogger::EXCEPTION);
 
 			if ($throw) {
 				throw $e;
