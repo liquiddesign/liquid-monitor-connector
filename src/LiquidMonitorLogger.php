@@ -48,9 +48,10 @@ class LiquidMonitorLogger extends Logger
 		}
 
 		// If cron is currently running, save this also as JobLogItem
-		if ($this->cron->getJobId()) {
-			$this->cron->progressJob($message);
-		}
+		// @todo Does not work, infinite loop
+//		if ($this->cron->getJobId()) {
+//			$this->cron->progressJob($message);
+//		}
 
 		if ($message instanceof WeakException) {
 			$weak = false;
