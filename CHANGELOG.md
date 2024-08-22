@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.34](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.33...v1.0.34) (2024-08-22)
+
+### Bug Fixes
+
+* Disable exception logging in Cron class ([03d050](https://github.com/liquiddesign/liquid-monitor-connector/commit/03d0506029c6c0763bddf6df10a637c0b489fb09))
+
+
+---
+
 ## [1.0.33](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.32...v1.0.33) (2024-08-22)
 
 ### Bug Fixes
