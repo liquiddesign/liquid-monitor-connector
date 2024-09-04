@@ -273,12 +273,12 @@ class Cron
 				'Accept' => 'application/json',
 				'Content-Type' => 'application/json',
 			],
-			'timeout' => 5,
+			'timeout' => 15,
 		];
 
 		try {
 			$client->post($url, $options);
-		} catch (GuzzleException $e) {
+		} catch (\Exception $e) {
 //			Debugger::log($e, ILogger::EXCEPTION);
 
 			if ($throw) {
