@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.35](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.34...v1.0.35) (2024-09-04)
+
+### Features
+
+* Increase HTTP request timeout and catch all exceptions ([c73c3e](https://github.com/liquiddesign/liquid-monitor-connector/commit/c73c3eff4770d1957db7796122a871dd9052bea2))
+
+
+---
+
 ## [1.0.34](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.33...v1.0.34) (2024-08-22)
 
 ### Bug Fixes
