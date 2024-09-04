@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace LiquidMonitorConnector;
 
 use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
 use LiquidMonitorConnector\Tasks\ExceptionToJsonArray;
 use Nette\Http\Request;
 use Nette\Utils\Json;
