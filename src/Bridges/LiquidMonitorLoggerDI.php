@@ -15,9 +15,12 @@ class LiquidMonitorLoggerDI extends \Nette\DI\CompilerExtension
 {
 	public function getConfigSchema(): Schema
 	{
+		/** @var \Nette\Schema\Elements\Type $levels */
+		$levels = Expect::array([ILogger::ERROR, ILogger::EXCEPTION, ILogger::CRITICAL, ILogger::WARNING, ILogger::INFO]);
+
 		return Expect::structure([
 			'title' => Expect::string(),
-			'levels' => Expect::array([ILogger::ERROR, ILogger::EXCEPTION, ILogger::CRITICAL, ILogger::WARNING, ILogger::INFO])->mergeDefaults(false),
+			'levels' => $levels->mergeDefaults(false),
 		]);
 	}
 	
