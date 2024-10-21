@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.37](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.36...v1.0.37) (2024-10-21)
+
+### Features
+
+* Add Carbon dependency and update cron API request ([5e2fc8](https://github.com/liquiddesign/liquid-monitor-connector/commit/5e2fc846fe71c7de2e0e9842df68705f5a2b3259))
+
+
+---
+
 ## [1.0.36](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.35...v1.0.36) (2024-10-21)
 
 ### Features
