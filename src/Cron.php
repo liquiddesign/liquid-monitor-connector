@@ -59,7 +59,7 @@ class Cron
 	{
 		$client = new Client();
 
-		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/is-running", ['http_errors' => false]);
+		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/is-running", ['http_errors' => false, 'json' => ['apiKey' => $this->getApiKey()]]);
 
 		return $response->getStatusCode() === 200;
 	}
