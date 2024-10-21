@@ -4,6 +4,16 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.36](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.35...v1.0.36) (2024-10-21)
+
+### Features
+
+* Add health check classes and update dependencies ([ab098d](https://github.com/liquiddesign/liquid-monitor-connector/commit/ab098d024c8cc3bb0f983fcbf76ed378770631d2))
+* Add isCronRunning method to check cron job status ([675d4a](https://github.com/liquiddesign/liquid-monitor-connector/commit/675d4a682e74bf6285f02bf268326358d20f1c1b))
+
+
+---
+
 ## [1.0.35](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.34...v1.0.35) (2024-09-04)
 
 ### Features
