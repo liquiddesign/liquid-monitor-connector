@@ -9,6 +9,7 @@ use LiquidMonitorConnector\Tasks\ExceptionToJsonArray;
 use Nette\Http\Request;
 use Nette\Utils\Json;
 use Nette\Utils\JsonException;
+use Nette\Utils\Strings;
 use Tracy\Debugger;
 use Tracy\ILogger;
 
@@ -52,6 +53,15 @@ class Cron
 		$this->url = $url;
 		$this->apiKey = $apiKey;
 		$this->enabled = $enabled;
+	}
+
+	public function isCronRunning(string $cronCode): bool
+	{
+		$client = new Client();
+
+		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/is-running", ['http_errors' => false]);
+
+		return $response->getStatusCode() === 200;
 	}
 
 	/**
