@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.38](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.37...v1.0.38) (2024-10-27)
+
+### Features
+
+* Add createIfNotExists parameter to Cron class methods ([31f1c2](https://github.com/liquiddesign/liquid-monitor-connector/commit/31f1c2d365e79a42933364b8afbc6f6eb7eccf5a))
+
+
+---
+
 ## [1.0.37](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.36...v1.0.37) (2024-10-21)
 
 ### Features
