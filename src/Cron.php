@@ -69,6 +69,12 @@ class Cron
 	 * @param string $cronCode
 	 * @param array<mixed>|null|\Exception $data
 	 * @param string|null $cronName If not null and Cron does not exist, create Cron.
+	 * @param int $cronRepeatCount
+	 * @param bool $cronCanRunConcurrently
+	 * @param bool $cronCanRunConcurrentlyCron
+	 * @param string|null $cronDescription
+	 * @param int|null $cronTimeout
+	 * @param bool $createIfNotExists
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
 	public function scheduleOrStartJob(
@@ -80,6 +86,7 @@ class Cron
 		bool $cronCanRunConcurrentlyCron = false,
 		string|null $cronDescription = null,
 		int|null $cronTimeout = null,
+		bool $createIfNotExists = false,
 	): bool {
 		if ($this->getSkipMonitorParameter()) {
 			return false;
@@ -100,6 +107,7 @@ class Cron
 				$cronCanRunConcurrentlyCron,
 				$cronDescription,
 				$cronTimeout,
+				$createIfNotExists,
 			);
 		} catch (\Exception $e) {
 			Debugger::log($e, ILogger::EXCEPTION);
@@ -118,6 +126,7 @@ class Cron
 		bool $cronCanRunConcurrentlyCron = false,
 		string|null $cronDescription = null,
 		int|null $cronTimeout = null,
+		bool $createIfNotExists = false,
 	): void {
 		$params = [
 			'cronId' => $cronId,
@@ -129,6 +138,7 @@ class Cron
 			'cronCanRunConcurrentlyCron' => $cronCanRunConcurrentlyCron,
 			'cronDescription' => $cronDescription,
 			'cronTimeout' => $cronTimeout,
+			'createIfNotExists' => $createIfNotExists,
 		];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params, true);
 	}
