@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.39](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.38...v1.0.39) (2024-11-29)
+
+### Features
+
+* Add INFO case to HealthCheckStatusEnum for additional status tracking ([4b0243](https://github.com/liquiddesign/liquid-monitor-connector/commit/4b0243abdf1fde94c69512d12ab92a086c79e79f))
+
+
+---
+
 ## [1.0.38](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.37...v1.0.38) (2024-10-27)
 
 ### Features
