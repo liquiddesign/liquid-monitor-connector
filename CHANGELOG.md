@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.40](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.39...v1.0.40) (2025-02-11)
+
+### Features
+
+* Remove trace array slicing in LiquidMonitorLogger ([3edc00](https://github.com/liquiddesign/liquid-monitor-connector/commit/3edc0007a08cd5dd203da294988c33c90d90cab3))
+
+
+---
+
 ## [1.0.39](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.38...v1.0.39) (2024-11-29)
 
 ### Features
