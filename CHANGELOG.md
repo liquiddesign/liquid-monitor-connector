@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.43](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.42...v1.0.43) (2025-02-14)
+
+### Bug Fixes
+
+* Cast memory usage to integer for job finish parameters ([9e5e3f](https://github.com/liquiddesign/liquid-monitor-connector/commit/9e5e3f161ad181fd304125f6ebd708398bd7d41f))
+
+
+---
+
 ## [1.0.42](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.41...v1.0.42) (2025-02-14)
 
 ### Bug Fixes
