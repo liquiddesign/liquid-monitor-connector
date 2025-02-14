@@ -302,7 +302,7 @@ class Cron
 		try {
 			$client->post($url, $options);
 		} catch (\Exception $e) {
-//			Debugger::log($e, ILogger::EXCEPTION);
+			Debugger::log($e, 'connector');
 
 			if ($throw) {
 				throw $e;
