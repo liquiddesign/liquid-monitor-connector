@@ -165,7 +165,9 @@ class Cron
 			return;
 		}
 
-		$params = ['data' => $this->processData($data)];
+		$memoryUsage = \memory_get_peak_usage(true) / 1024 / 1024;
+
+		$params = ['data' => $this->processData($data), 'ram' => $memoryUsage];
 		$this->send($this->getUrl() . self::JOB_FINISH_ENDPOINT, $params);
 	}
 
@@ -193,7 +195,9 @@ class Cron
 			return;
 		}
 
-		$params = ['data' => $this->processData($data)];
+		$memoryUsage = \memory_get_peak_usage(true) / 1024 / 1024;
+
+		$params = ['data' => $this->processData($data), 'ram' => $memoryUsage];
 		$this->send($this->getUrl() . self::JOB_FAIL_ENDPOINT, $params);
 	}
 
