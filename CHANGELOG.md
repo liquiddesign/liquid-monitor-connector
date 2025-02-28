@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.44](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.43...v1.0.44) (2025-02-28)
+
+### Bug Fixes
+
+* Cast memory usage to integer for accurate reporting in Cron.php ([fe120d](https://github.com/liquiddesign/liquid-monitor-connector/commit/fe120dec6cb4fc869df9fdaa57c8aa2c09f50ca9))
+
+
+---
+
 ## [1.0.43](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.42...v1.0.43) (2025-02-14)
 
 ### Bug Fixes
