@@ -195,7 +195,7 @@ class Cron
 			return;
 		}
 
-		$memoryUsage = \memory_get_peak_usage(true) / 1024 / 1024;
+		$memoryUsage = (int) (\memory_get_peak_usage(true) / 1024 / 1024);
 
 		$params = ['data' => $this->processData($data), 'ram' => $memoryUsage];
 		$this->send($this->getUrl() . self::JOB_FAIL_ENDPOINT, $params);
