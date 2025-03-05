@@ -4,6 +4,11 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.45](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.44...v1.0.45) (2025-03-05)
+
+
+---
+
 ## [1.0.44](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.43...v1.0.44) (2025-03-05)
 
 ### ⚠ BREAKING CHANGES
