@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.44](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.43...v1.0.44) (2025-03-05)
+
+### ⚠ BREAKING CHANGES
+
+* Change default value of createIfNotExists to true in Cron.php ([ba6947](https://github.com/liquiddesign/liquid-monitor-connector/commit/ba69478355ceda270686b60331602bcd78bef635))
+
+
+---
+
 ## [1.0.43](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.42...v1.0.43) (2025-02-14)
 
 ### Bug Fixes
