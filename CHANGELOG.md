@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.46](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.45...v1.0.46) (2025-03-10)
+
+### Bug Fixes
+
+* Set weak flag to true for WeakException handling in LiquidMonitorLogger.php ([a54e9a](https://github.com/liquiddesign/liquid-monitor-connector/commit/a54e9a4355fe41ac360b56c1c05a2142f035507c))
+
+
+---
+
 ## [1.0.45](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.44...v1.0.45) (2025-03-05)
 
 
