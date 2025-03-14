@@ -22,7 +22,7 @@
         "composer/composer": "~2.0",
         "liquiddesign/codestyle": "~3.0.9",
         "liquiddesign/migrator": "~1.0",
-        "phpstan/phpstan-nette": "^1.0",
+        "phpstan/phpstan-nette": "^2.0",
         "phpcompatibility/php-compatibility": "^9.0"
     },
     "prefer-stable": true,
