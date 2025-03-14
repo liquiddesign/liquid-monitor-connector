@@ -54,7 +54,7 @@ class LiquidMonitorLogger extends Logger
 //		}
 
 		if ($message instanceof WeakException) {
-			$weak = false;
+			$weak = true;
 		}
 
 		[$message, $data, $code] = $this->parseMessage($message);

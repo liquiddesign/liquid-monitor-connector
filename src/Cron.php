@@ -86,7 +86,7 @@ class Cron
 		bool $cronCanRunConcurrentlyCron = false,
 		string|null $cronDescription = null,
 		int|null $cronTimeout = null,
-		bool $createIfNotExists = false,
+		bool $createIfNotExists = true,
 	): bool {
 		if ($this->getSkipMonitorParameter()) {
 			return false;
@@ -126,7 +126,7 @@ class Cron
 		bool $cronCanRunConcurrentlyCron = false,
 		string|null $cronDescription = null,
 		int|null $cronTimeout = null,
-		bool $createIfNotExists = false,
+		bool $createIfNotExists = true,
 	): void {
 		$params = [
 			'cronId' => $cronId,
