@@ -4,6 +4,19 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.47](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.46...v1.0.47) (2025-03-16)
+
+### Features
+
+* Add cron job log ID to logging data in LiquidMonitorLogger ([d483dd](https://github.com/liquiddesign/liquid-monitor-connector/commit/d483dda7da7cbe9f38ec97207eaba42795023797))
+
+### Bug Fixes
+
+* Rename 'cron_job_log_id' to 'job_id' in LiquidMonitorLogger ([cc251e](https://github.com/liquiddesign/liquid-monitor-connector/commit/cc251e42ab853087c250d9952d3ec8d8540a7452))
+
+
+---
+
 ## [1.0.46](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.45...v1.0.46) (2025-03-10)
 
 ### Bug Fixes
