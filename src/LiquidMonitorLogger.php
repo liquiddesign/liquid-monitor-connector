@@ -76,7 +76,7 @@ class LiquidMonitorLogger extends Logger
 			'memory_usage' => $this->getCurrentMemoryUsage(),
 			'code' => (string) $code,
 			'weak' => $weak,
-			'cron_job_log_id' => $this->cron->getJobId(),
+			'job_id' => $this->cron->getJobId(),
 		], $level);
 	}
 
