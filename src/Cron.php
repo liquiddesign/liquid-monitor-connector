@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LiquidMonitorConnector;
 
 use GuzzleHttp\Client;
+use LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException;
 use LiquidMonitorConnector\Tasks\ExceptionToJsonArray;
 use Nette\Http\Request;
 use Nette\Utils\Json;
@@ -109,6 +110,8 @@ class Cron
 				$cronTimeout,
 				$createIfNotExists,
 			);
+		} catch (LiquidMonitorDisabledException) {
+			return true;
 		} catch (\Exception $e) {
 			Debugger::log($e, ILogger::EXCEPTION);
 
@@ -117,7 +120,11 @@ class Cron
 
 		return false;
 	}
-	
+
+	/**
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
+	 */
 	public function scheduleJob(
 		string $cronId,
 		string|null $cronName = null,
@@ -275,6 +282,9 @@ class Cron
 	 * @param string $url
 	 * @param array<string, mixed> $params
 	 * @param bool $throw
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
+	 * @throws \Exception
 	 */
 	private function send(string $url, array $params, bool $throw = false): void
 	{
@@ -283,7 +293,7 @@ class Cron
 
 		if (!$apiKey || !$this->isEnabled()) {
 			if ($throw) {
-				throw new \Exception('LiquidMonitor is disabled');
+				throw new LiquidMonitorDisabledException();
 			}
 
 			return;
