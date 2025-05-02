@@ -6,9 +6,11 @@ use LiquidMonitorConnector\Exceptions\WeakException;
 use LiquidMonitorConnector\Tasks\ExceptionToJsonArray;
 use Nette\Http\Request;
 use Nette\Http\RequestFactory;
+use Nette\Security\User;
 use Nette\Utils\Arrays;
 use Nette\Utils\Json;
 use Nette\Utils\Strings;
+use StORM\Entity;
 use Tracy\Debugger;
 use Tracy\ILogger;
 use Tracy\Logger;
@@ -24,7 +26,7 @@ class LiquidMonitorLogger extends Logger
 	 */
 	private array $levels;
 
-	public function __construct(protected Request $request, protected Cron $cron, protected RequestFactory $requestFactory)
+	public function __construct(protected Request $request, protected Cron $cron, protected RequestFactory $requestFactory, private readonly User $user)
 	{
 		parent::__construct(Debugger::$logDirectory, Debugger::$email, Debugger::getBlueScreen());
 	}
@@ -77,6 +79,9 @@ class LiquidMonitorLogger extends Logger
 			'code' => (string) $code,
 			'weak' => $weak,
 			'job_id' => $this->cron->getJobId(),
+			'identity' => $this->user->isLoggedIn() && ($identity = $this->user->getIdentity()) ?
+				Json::encode($identity instanceof Entity ? $identity->toArray() : (array) $identity) :
+				null,
 		], $level);
 	}
 
@@ -89,7 +94,7 @@ class LiquidMonitorLogger extends Logger
 	 * @param mixed $message
 	 * @return array{0: string, 1: string|null, 2: string|int|null}
 	 */
-	private function parseMessage($message): array
+	private function parseMessage(mixed $message): array
 	{
 		$code = null;
 

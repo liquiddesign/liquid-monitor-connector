@@ -12,6 +12,7 @@
         "nette/utils": "^3.0 || ^4.0",
         "nette/http": "^3.0",
         "nette/application": "^3.0",
+        "nette/security": "^3.0",
         "tracy/tracy": "^2.0",
         "nette/di": "~3.0",
         "guzzlehttp/guzzle": "^7.0",
@@ -55,5 +56,5 @@
             "dealerdirect/phpcodesniffer-composer-installer": true
         }
     },
-    "version": "1.0.47"
+    "version": "1.0.48"
 }
