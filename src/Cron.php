@@ -121,7 +121,23 @@ class Cron
 		return false;
 	}
 
+	public function getArguments(): array|null
+	{
+		if (!$this->getParameters() || !isset($this->getParameters()->arguments)) {
+			return null;
+		}
+
+		try {
+			return \unserialize($this->getParameters()->arguments);
+		} catch (\Exception $e) {
+			Debugger::log($e, ILogger::EXCEPTION);
+
+			return null;
+		}
+	}
+
 	/**
+	 * @param array<mixed>|null $arguments
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
 	 */
@@ -134,6 +150,7 @@ class Cron
 		string|null $cronDescription = null,
 		int|null $cronTimeout = null,
 		bool $createIfNotExists = true,
+		array|null $arguments = null,
 	): void {
 		$params = [
 			'cronId' => $cronId,
@@ -146,6 +163,7 @@ class Cron
 			'cronDescription' => $cronDescription,
 			'cronTimeout' => $cronTimeout,
 			'createIfNotExists' => $createIfNotExists,
+			'arguments' => \serialize($arguments),
 		];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params, true);
 	}
