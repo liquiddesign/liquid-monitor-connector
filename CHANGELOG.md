@@ -4,6 +4,18 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.49](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.48...v1.0.49) (2025-05-08)
+
+### Features
+
+* Add getArguments method and support for serialized arguments in Cron.php ([f03165](https://github.com/liquiddesign/liquid-monitor-connector/commit/f03165e732d676153c87c761c8139dbfce25f915))
+* Add getArguments method to Cron.php and update dependencies in LiquidMonitorConnectorDI ([de6bde](https://github.com/liquiddesign/liquid-monitor-connector/commit/de6bde55a77f0151b6a899c6ccc5c869db7ce393))
+* Add GetCronService class and register it in LiquidMonitorConnectorDI ([618c5e](https://github.com/liquiddesign/liquid-monitor-connector/commit/618c5e6c206a9effe74164103e690648469795db))
+* Introduce LiquidMonitorDisabledException and handle it in Cron.php ([6f40f2](https://github.com/liquiddesign/liquid-monitor-connector/commit/6f40f2334d0676d63d5cad132e02f1e3c90f83b9))
+
+
+---
+
 ## [1.0.48](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.47...v1.0.48) (2025-03-22)
 
 ### Features
