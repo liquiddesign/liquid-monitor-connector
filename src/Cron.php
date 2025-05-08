@@ -121,6 +121,9 @@ class Cron
 		return false;
 	}
 
+	/**
+	 * @return array<mixed>|null
+	 */
 	public function getArguments(): array|null
 	{
 		if (!$this->getParameters() || !isset($this->getParameters()->arguments)) {

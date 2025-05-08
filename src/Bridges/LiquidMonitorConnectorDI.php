@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace LiquidMonitorConnector\Bridges;
 
-use LiquidMonitorConnector\Cron;
 use LiquidMonitorConnector\Actions\GetCronService;
+use LiquidMonitorConnector\Cron;
 use Nette\DI\CompilerExtension;
 use Nette\Schema\Expect;
 use Nette\Schema\Schema;
