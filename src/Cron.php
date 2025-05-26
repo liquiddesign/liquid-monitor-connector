@@ -166,7 +166,7 @@ class Cron
 			'cronDescription' => $cronDescription,
 			'cronTimeout' => $cronTimeout,
 			'createIfNotExists' => $createIfNotExists,
-			'arguments' => \serialize($arguments),
+			'arguments' => $arguments ? \serialize($arguments) : null,
 		];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params, true);
 	}
