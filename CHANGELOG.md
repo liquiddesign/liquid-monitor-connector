@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.50](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.49...v1.0.50) (2025-05-26)
+
+### Features
+
+* Update arguments serialization in Cron.php to handle null values ([d07b49](https://github.com/liquiddesign/liquid-monitor-connector/commit/d07b493d974f92462aa0d15395a643473e12eb78))
+
+
+---
+
 ## [1.0.49](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.48...v1.0.49) (2025-05-08)
 
 ### Features
