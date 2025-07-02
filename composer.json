@@ -17,8 +17,7 @@
         "nette/di": "~3.0",
         "guzzlehttp/guzzle": "^7.0",
         "nesbot/carbon": "^2.0 || ^3.0",
-        "liquiddesign/base": "^2.0",
-        "nunomaduro/pokio": "^0.1"
+        "liquiddesign/base": "^2.0"
     },
     "require-dev": {
         "nette/tester": "^2.0",
