@@ -4,10 +4,8 @@ namespace LiquidMonitorConnector;
 
 final class Job
 {
-	public function __construct(
-		private readonly Connector2 $connector2,
-		private int $cronId,
-	) {
+	public function __construct(private readonly Connector2 $connector2, private int $cronId,)
+	{
 	}
 
 	/**
