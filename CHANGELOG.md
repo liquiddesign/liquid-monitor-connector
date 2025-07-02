@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.54](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.53...v1.0.54) (2025-07-02)
+
+### Features
+
+* Add exception messages to ExceptionToJsonArray output ([4cc408](https://github.com/liquiddesign/liquid-monitor-connector/commit/4cc408174623f2d257cd2685f5bcf35e2b448f1b))
+
+
+---
+
 ## [1.0.53](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.52...v1.0.53) (2025-07-02)
 
 
