@@ -17,7 +17,8 @@
         "nette/di": "~3.0",
         "guzzlehttp/guzzle": "^7.0",
         "nesbot/carbon": "^2.0 || ^3.0",
-        "liquiddesign/base": "^2.0"
+        "liquiddesign/base": "^2.0",
+        "nunomaduro/pokio": "^0.1"
     },
     "require-dev": {
         "nette/tester": "^2.0",
@@ -57,5 +58,5 @@
             "dealerdirect/phpcodesniffer-composer-installer": true
         }
     },
-    "version": "1.0.50"
+    "version": "1.0.51"
 }
