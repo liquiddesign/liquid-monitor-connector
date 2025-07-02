@@ -36,14 +36,12 @@ class ExceptionToJsonArray
 		$previousExceptions = [];
 		$exceptionCopy = $exception;
 
-		while ($exceptionCopy->getPrevious()) {
+		while ($exceptionCopy = $exceptionCopy->getPrevious()) {
 			$previousExceptions[] = [
 				'trace' => self::getTraces($exceptionCopy),
 				'file' => $exceptionCopy->getFile(),
 				'line' => $exceptionCopy->getLine(),
 			];
-
-			$exceptionCopy = $exceptionCopy->getPrevious();
 		}
 
 		return [
