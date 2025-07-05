@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace LiquidMonitorConnector\Bridges;
 
 use LiquidMonitorConnector\Actions\GetCronService;
-use LiquidMonitorConnector\Cron;
+use LiquidMonitorConnector\LiquidMonitorConnector;
 use Nette\DI\CompilerExtension;
 use Nette\Schema\Expect;
 use Nette\Schema\Schema;
@@ -28,8 +28,9 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 		
 		$builder = $this->getContainerBuilder();
 		
-		$cron = $builder->addDefinition('liquidMonitorConnector')->setType(Cron::class);
-		$cron->addSetup('setConfiguration', [$config->url, $config->apiKey, $config->enabled]);
+		$builder->addDefinition('liquidMonitorConnector')
+			->setType(LiquidMonitorConnector::class)
+			->addSetup('setConfiguration', [$config->url, $config->apiKey, $config->enabled]);
 
 		$builder->addDefinition('liquidMonitorConnector.getCronService')->setType(GetCronService::class);
 	}

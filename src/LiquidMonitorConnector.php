@@ -14,9 +14,11 @@ use Nette\Utils\Strings;
 use Tracy\Debugger;
 use Tracy\ILogger;
 
-class Cron
+class LiquidMonitorConnector
 {
 	private const JOB_SCHEDULE_ENDPOINT = '/schedule-job';
+	private const GET_JOBS_TO_RUN_ENDPOINT = '/get-jobs-to-run';
+	private const RUN_JOB_ENDPOINT = '/run-job';
 	private const JOB_START_ENDPOINT = '/start-job';
 	private const JOB_PROGRESS_ENDPOINT = '/progress-job';
 	private const JOB_FINISH_ENDPOINT = '/finish-job';
@@ -66,10 +68,10 @@ class Cron
 	}
 
 	/**
-	 * Schedule Cron if no POST data otherwise start Cron.
+	 * Schedule LiquidMonitorConnector if no POST data otherwise start LiquidMonitorConnector.
 	 * @param string $cronCode
 	 * @param array<mixed>|null|\Exception $data
-	 * @param string|null $cronName If not null and Cron does not exist, create Cron.
+	 * @param string|null $cronName If not null and LiquidMonitorConnector does not exist, create LiquidMonitorConnector.
 	 * @param int $cronRepeatCount
 	 * @param bool $cronCanRunConcurrently
 	 * @param bool $cronCanRunConcurrentlyCron
@@ -140,6 +142,16 @@ class Cron
 	}
 
 	/**
+	 * @return array<array{jobId: int, cronId: string, class: class-string, method: string, arguments: string|null}>
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
+	 */
+	public function getJobsToRun(): array
+	{
+		return $this->send($this->getUrl() . self::GET_JOBS_TO_RUN_ENDPOINT, ['apiKey' => $this->getApiKey()], true, true);
+	}
+
+	/**
 	 * @param array<mixed>|null $arguments
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
@@ -154,6 +166,8 @@ class Cron
 		int|null $cronTimeout = null,
 		bool $createIfNotExists = true,
 		array|null $arguments = null,
+		string|null $class = null,
+		string|null $method = null,
 	): void {
 		$params = [
 			'cronId' => $cronId,
@@ -167,6 +181,8 @@ class Cron
 			'cronTimeout' => $cronTimeout,
 			'createIfNotExists' => $createIfNotExists,
 			'arguments' => $arguments ? \serialize($arguments) : null,
+			'class' => $class,
+			'method' => $method,
 		];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params, true);
 	}
@@ -175,11 +191,16 @@ class Cron
 	 * @param array<mixed>|null|\Exception $data
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function startJob(array|\Exception|null|string $data = null): void
+	public function startJob(array|\Exception|null|string $data = null, int|null $jobId = null): void
 	{
 		\register_shutdown_function([$this, 'shutdownFunction']);
 		
 		$params = ['data' => $this->processData($data)];
+
+		if ($jobId) {
+			$params['jobId'] = $jobId;
+		}
+
 		$this->send($this->getUrl() . self::JOB_START_ENDPOINT, $params);
 	}
 
@@ -306,8 +327,9 @@ class Cron
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
 	 * @throws \Exception
+	 * @return array<mixed>|null
 	 */
-	private function send(string $url, array $params, bool $throw = false): void
+	private function send(string $url, array $params, bool $throw = false, bool $expectResponseBody = false,): array|null
 	{
 		$client = new Client();
 		$apiKey = $this->getApiKey();
@@ -317,7 +339,7 @@ class Cron
 				throw new LiquidMonitorDisabledException();
 			}
 
-			return;
+			return null;
 		}
 
 		$options = [
@@ -331,13 +353,43 @@ class Cron
 		];
 
 		try {
-			$client->post($url, $options);
+			$response = $client->post($url, $options);
 		} catch (\Exception $e) {
 			Debugger::log($e, 'connector');
 
 			if ($throw) {
 				throw $e;
 			}
+
+			return null;
 		}
+
+		if (!$expectResponseBody) {
+			return null;
+		}
+
+		if ($response->getStatusCode() !== 200) {
+			if ($throw) {
+				throw new \RuntimeException('LiquidMonitorConnector request failed: ' . $response->getBody()->getContents());
+			}
+
+			return null;
+		}
+
+		$responseBody = $response->getBody()->getContents();
+
+		try {
+			$responseData = Json::decode($responseBody, forceArrays: true);
+		} catch (JsonException $e) {
+			Debugger::log($e, ILogger::EXCEPTION);
+
+			if ($throw) {
+				throw new \RuntimeException('Invalid JSON response from LiquidMonitorConnector: ' . $responseBody);
+			}
+
+			return null;
+		}
+
+		return $responseData;
 	}
 }

@@ -3,7 +3,7 @@
 namespace LiquidMonitorConnector\Actions;
 
 use Base\BaseAction;
-use LiquidMonitorConnector\Cron;
+use LiquidMonitorConnector\LiquidMonitorConnector;
 use Nette\DI\Container;
 
 class GetCronService extends BaseAction
@@ -12,10 +12,10 @@ class GetCronService extends BaseAction
 	{
 	}
 
-	public function execute(): Cron|null
+	public function execute(): LiquidMonitorConnector|null
 	{
 		return $this->getLocalCachedOutput('cron', function () {
-			return $this->container->getByType(Cron::class, false);
+			return $this->container->getByType(LiquidMonitorConnector::class, false);
 		});
 	}
 }
