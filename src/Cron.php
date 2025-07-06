@@ -277,7 +277,7 @@ class Cron
 
 	protected function shutdownFunction(): void
 	{
-		$this->failJob(data: ['reason' => 'Server shutdown']);
+		$this->failJob(data: ['reason' => "PHP shutdown function triggered. Did you forget to call finishJob() or failJob() in your code?"]);
 	}
 
 	protected function getSkipMonitorParameter(): bool
