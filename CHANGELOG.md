@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.55](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.54...v1.0.55) (2025-07-06)
+
+### Features
+
+* Improve shutdown function error message for clearer debugging ([bd983b](https://github.com/liquiddesign/liquid-monitor-connector/commit/bd983bbab6b31cbdcc62cb680d7f4652fe06df05))
+
+
+---
+
 ## [1.0.54](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.53...v1.0.54) (2025-07-02)
 
 ### Features
