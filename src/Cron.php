@@ -14,6 +14,21 @@ use Nette\Utils\Strings;
 use Tracy\Debugger;
 use Tracy\ILogger;
 
+/**
+ * @phpstan-type JobLogArray array{
+ *     id: int,
+ *     data: mixed|null,
+ *     type: string,
+ *     created_at: string,
+ *     updated_at: string,
+ *     cron_id: int,
+ *     job_id: int,
+ *     started_ts: string,
+ *     finished_ts: string,
+ *     repeatCount: int,
+ *     timeout: int
+ * }
+ */
 class Cron
 {
 	private const JOB_SCHEDULE_ENDPOINT = '/schedule-job';
@@ -63,6 +78,25 @@ class Cron
 		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/is-running", ['http_errors' => false, 'json' => ['apiKey' => $this->getApiKey()]]);
 
 		return $response->getStatusCode() === 200;
+	}
+
+	/**
+	 * Get the last cron job log
+	 * @param string $cronCode
+	 * @return JobLogArray|null
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 */
+	public function getLastCronJobLog(string $cronCode): array|null
+	{
+		$client = new Client();
+
+		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/last-job-log", ['http_errors' => false, 'json' => ['apiKey' => $this->getApiKey()]]);
+
+		if ($response->getStatusCode() === 200) {
+			return Json::decode($response->getBody()->getContents(), true);
+		}
+
+		return null;
 	}
 
 	/**
