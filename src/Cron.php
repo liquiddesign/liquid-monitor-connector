@@ -91,9 +91,14 @@ class Cron
 		$client = new Client();
 
 		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/last-job-log", ['http_errors' => false, 'json' => ['apiKey' => $this->getApiKey()]]);
+		$content = $response->getBody()->getContents();
 
-		if ($response->getStatusCode() === 200) {
-			return Json::decode($response->getBody()->getContents(), true);
+		if ($response->getStatusCode() === 200 && $content) {
+			try {
+				return Json::decode($content, true);
+			} catch (JsonException $e) {
+				return null;
+			}
 		}
 
 		return null;
