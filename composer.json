@@ -39,13 +39,11 @@
         ],
         "check-code": [
             "@phpcs",
-            "@phpstan",
-            "@check-commit"
+            "@phpstan"
         ],
         "phpstan": "phpstan analyse --memory-limit 1G -c phpstan.neon",
         "phpcs": "phpcs --standard=ruleset.xml --ignore=assets src",
         "phpcsfix": "phpcbf --standard=ruleset.xml --ignore=assets src",
-        "check-commit": "@php ./vendor/liquiddesign/codestyle/src/scripts/check-last-commit.php",
         "changelog": "conventional-changelog",
         "release": "conventional-changelog --commit",
         "release:patch": "conventional-changelog --patch --commit",
