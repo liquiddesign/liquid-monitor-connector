@@ -8,6 +8,7 @@ use GuzzleHttp\Client;
 use LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException;
 use LiquidMonitorConnector\Tasks\ExceptionToJsonArray;
 use Nette\Http\Request;
+use Nette\Utils\Arrays;
 use Nette\Utils\Json;
 use Nette\Utils\JsonException;
 use Nette\Utils\Strings;
@@ -320,7 +321,7 @@ class Cron
 
 		$error = \error_get_last();
 
-		if ($error !== null && \in_array($error['type'], [\E_ERROR, \E_PARSE, \E_CORE_ERROR, \E_COMPILE_ERROR], true)) {
+		if ($error !== null && Arrays::contains([\E_ERROR, \E_PARSE, \E_CORE_ERROR, \E_COMPILE_ERROR], $error['type'])) {
 			$data['error'] = [
 				'type' => $error['type'],
 				'message' => $error['message'],
