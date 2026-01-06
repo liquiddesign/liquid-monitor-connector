@@ -73,6 +73,7 @@ class LiquidMonitorLogger extends Logger
 			'data' => $data,
 			'remoteAddress' => $this->request->getRemoteAddress(),
 			'method' => $this->request->getMethod(),
+			'request_body' => $this->request->getRawBody(),
 			// phpcs:ignore
 			'duration' => (int) ((\microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']) * 1000),
 			'memory_usage' => $this->getCurrentMemoryUsage(),
