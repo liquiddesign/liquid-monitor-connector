@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.60](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.59...v1.0.60) (2026-01-14)
+
+### Features
+
+* Add method to fetch cron job logs statistics for the last 24 hours in Cron.php ([9ae7ce](https://github.com/liquiddesign/liquid-monitor-connector/commit/9ae7cef3b26ca5530216d7dff38de0ef12465da0))
+
+
+---
+
 ## [1.0.58](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.57...v1.0.58) (2025-12-03)
 
 ### Features
