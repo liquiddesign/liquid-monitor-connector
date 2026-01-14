@@ -106,6 +106,41 @@ class Cron
 	}
 
 	/**
+	 * Get cron job logs statistics for the last 24 hours
+	 * @param string $cronCode
+	 * @return array{
+	 *     cronCode: string,
+	 *     cronName: string|null,
+	 *     period: string,
+	 *     totalRuns: int,
+	 *     successfulRuns: int,
+	 *     failedRuns: int,
+	 *     runningRuns: int,
+	 *     successRate: float,
+	 *     lastSuccessfulRun: array{finished_ts: string, started_ts: string}|null,
+	 *     lastFailedRun: array{created_at: string, started_ts: string}|null
+	 * }|null
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 */
+	public function getCronJobLogsStats(string $cronCode): array|null
+	{
+		$client = new Client();
+
+		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/joblogs-stats", ['http_errors' => false, 'json' => ['apiKey' => $this->getApiKey()]]);
+		$content = $response->getBody()->getContents();
+
+		if ($response->getStatusCode() === 200 && $content) {
+			try {
+				return Json::decode($content, true);
+			} catch (JsonException $e) {
+				return null;
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * Schedule Cron if no POST data otherwise start Cron.
 	 * @param string $cronCode
 	 * @param array<mixed>|null|\Exception $data
