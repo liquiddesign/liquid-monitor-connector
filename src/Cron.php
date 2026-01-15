@@ -244,6 +244,8 @@ class Cron
 			'arguments' => $arguments ? \serialize($arguments) : null,
 		];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params, true);
+
+		Debugger::log("Cron job scheduled: $cronId", 'cron-schedule');
 	}
 
 	/**
