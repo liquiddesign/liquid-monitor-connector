@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.61](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.60...v1.0.61) (2026-01-15)
+
+### Features
+
+* Add method to validate JSON request body in LiquidMonitorLogger ([15ca6a](https://github.com/liquiddesign/liquid-monitor-connector/commit/15ca6a3efa959d28312b96af9c0336c3b0638584))
+
+
+---
+
 ## [1.0.60](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.59...v1.0.60) (2026-01-14)
 
 ### Features
