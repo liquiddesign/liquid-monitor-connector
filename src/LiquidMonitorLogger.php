@@ -9,6 +9,7 @@ use Nette\Http\RequestFactory;
 use Nette\Security\User;
 use Nette\Utils\Arrays;
 use Nette\Utils\Json;
+use Nette\Utils\JsonException;
 use Nette\Utils\Strings;
 use StORM\Entity;
 use Tracy\Debugger;
@@ -73,7 +74,7 @@ class LiquidMonitorLogger extends Logger
 			'data' => $data,
 			'remoteAddress' => $this->request->getRemoteAddress(),
 			'method' => $this->request->getMethod(),
-			'request_body' => $this->request->getRawBody(),
+			'request_body' => $this->getValidJsonRequestBody(),
 			// phpcs:ignore
 			'duration' => (int) ((\microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']) * 1000),
 			'memory_usage' => $this->getCurrentMemoryUsage(),
@@ -89,6 +90,27 @@ class LiquidMonitorLogger extends Logger
 	protected function getCurrentMemoryUsage(): int
 	{
 		return (int) (\memory_get_peak_usage() / 1000000);
+	}
+
+	/**
+	 * Returns request body only if it's a valid JSON string, otherwise null.
+	 * This prevents API errors when the request body is form data or other non-JSON content.
+	 */
+	private function getValidJsonRequestBody(): string|null
+	{
+		$rawBody = $this->request->getRawBody();
+
+		if ($rawBody === null || $rawBody === '') {
+			return null;
+		}
+
+		try {
+			Json::decode($rawBody);
+
+			return $rawBody;
+		} catch (JsonException) {
+			return null;
+		}
 	}
 
 	/**
