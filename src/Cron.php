@@ -40,12 +40,14 @@ class Cron
 	private const LOG_ENDPOINT = '/log';
 
 	private string $url;
-	
+
 	private string|null $apiKey;
 
 	private bool $enabled;
 
 	private Request $httpRequest;
+
+	private string|null $currentCronCode = null;
 	
 	public function __construct(Request $httpRequest)
 	{
@@ -164,6 +166,8 @@ class Cron
 		int|null $cronTimeout = null,
 		bool $createIfNotExists = true,
 	): bool {
+		$this->currentCronCode = $cronCode;
+
 		if ($this->getSkipMonitorParameter()) {
 			return false;
 		}
@@ -267,6 +271,9 @@ class Cron
 	public function finishJob(array|\Exception|null|string $data = null): void
 	{
 		if (!$this->getJobId()) {
+			$cronCode = $this->currentCronCode ?? 'unknown';
+			Debugger::log("Cron job finished (not monitored): $cronCode", 'cron-finish');
+
 			return;
 		}
 
@@ -297,6 +304,10 @@ class Cron
 	public function failJob(array|\Exception|null|string $data = null): void
 	{
 		if (!$this->getJobId()) {
+			$cronCode = $this->currentCronCode ?? 'unknown';
+			$dataInfo = $data ? ' - ' . \json_encode($this->processData($data)) : '';
+			Debugger::log("Cron job failed (not monitored): $cronCode$dataInfo", 'cron-fail');
+
 			return;
 		}
 
