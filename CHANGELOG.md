@@ -4,6 +4,15 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [1.0.63](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.62...v1.0.63) (2026-01-22)
+
+### Features
+
+* Add logging for cron finish/fail when not monitored ([21324c](https://github.com/liquiddesign/liquid-monitor-connector/commit/21324c3f723bc4bd5d6e201ddc309bde1df2d1db))
+
+
+---
+
 ## [1.0.62](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.61...v1.0.62) (2026-01-15)
 
 ### Features
