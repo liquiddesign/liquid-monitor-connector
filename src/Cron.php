@@ -338,8 +338,18 @@ class Cron
 		if (!$this->getParameters() || !isset($this->getParameters()->jobId)) {
 			return null;
 		}
-		
+
 		return (string) $this->getParameters()->jobId;
+	}
+
+	public function getUrl(): string
+	{
+		return $this->url;
+	}
+
+	public function getApiKey(): string|null
+	{
+		return $this->apiKey;
 	}
 
 	/**
@@ -388,16 +398,6 @@ class Cron
 		}
 
 		return (bool) $this->getParameters()->skipMonitor;
-	}
-	
-	private function getUrl(): string
-	{
-		return $this->url;
-	}
-	
-	private function getApiKey(): string|null
-	{
-		return $this->apiKey;
 	}
 
 	/**
