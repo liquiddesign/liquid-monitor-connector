@@ -108,6 +108,37 @@ class Cron
 	}
 
 	/**
+	 * Get overview of all project crons together with their last-24h job log statistics
+	 * in a single HTTP request (replaces N+1 calls to /front/cron + /front/cron/{code}/joblogs-stats).
+	 * @return array<int, array<string, mixed>>|null
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 */
+	public function getCronOverview(): array|null
+	{
+		$client = new Client();
+
+		$response = $client->get(Strings::before($this->getUrl(), 'connector') . 'front/cron/overview', [
+			'http_errors' => false,
+			'json' => ['apiKey' => $this->getApiKey()],
+			'headers' => ['Accept' => 'application/json'],
+			'timeout' => 15,
+		]);
+		$content = $response->getBody()->getContents();
+
+		if ($response->getStatusCode() === 200 && $content) {
+			try {
+				$decoded = Json::decode($content, true);
+
+				return $decoded['data'] ?? null;
+			} catch (JsonException $e) {
+				return null;
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * Get cron job logs statistics for the last 24 hours
 	 * @param string $cronCode
 	 * @return array{
