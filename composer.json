@@ -48,7 +48,13 @@
         "release": "conventional-changelog --commit",
         "release:patch": "conventional-changelog --patch --commit",
         "release:minor": "conventional-changelog --minor --commit",
-        "release:major": "conventional-changelog --major --commit"
+        "release:major": "conventional-changelog --major --commit",
+        "post-install-cmd": [
+            "git config core.hooksPath scripts/hooks 2>/dev/null || true"
+        ],
+        "post-update-cmd": [
+            "git config core.hooksPath scripts/hooks 2>/dev/null || true"
+        ]
     },
     "config": {
         "allow-plugins": {
