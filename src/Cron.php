@@ -184,6 +184,7 @@ class Cron
 	 * @param string|null $cronDescription
 	 * @param int|null $cronTimeout
 	 * @param bool $createIfNotExists
+	 * @param array<mixed>|null $arguments Custom parameters forwarded to the cron URL when the job runs.
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
 	public function scheduleOrStartJob(
@@ -196,6 +197,7 @@ class Cron
 		string|null $cronDescription = null,
 		int|null $cronTimeout = null,
 		bool $createIfNotExists = true,
+		array|null $arguments = null,
 	): bool {
 		$this->currentCronCode = $cronCode;
 
@@ -219,6 +221,7 @@ class Cron
 				$cronDescription,
 				$cronTimeout,
 				$createIfNotExists,
+				$arguments,
 			);
 		} catch (LiquidMonitorDisabledException) {
 			return true;
@@ -232,21 +235,30 @@ class Cron
 	}
 
 	/**
+	 * Returns custom arguments forwarded by the monitor when the cron URL is being called.
 	 * @return array<mixed>|null
 	 */
 	public function getArguments(): array|null
 	{
-		if (!$this->getParameters() || !isset($this->getParameters()->arguments)) {
+		$rawBody = $this->httpRequest->getRawBody();
+
+		if (!$rawBody) {
 			return null;
 		}
 
 		try {
-			return \unserialize($this->getParameters()->arguments);
-		} catch (\Exception $e) {
+			$body = Json::decode($rawBody, forceArrays: true);
+		} catch (JsonException $e) {
 			Debugger::log($e, ILogger::EXCEPTION);
 
 			return null;
 		}
+
+		if (!\is_array($body) || !isset($body['arguments']) || !\is_array($body['arguments'])) {
+			return null;
+		}
+
+		return $body['arguments'];
 	}
 
 	/**
@@ -276,7 +288,7 @@ class Cron
 			'cronDescription' => $cronDescription,
 			'cronTimeout' => $cronTimeout,
 			'createIfNotExists' => $createIfNotExists,
-			'arguments' => $arguments ? \serialize($arguments) : null,
+			'arguments' => $arguments,
 		];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params, true);
 
