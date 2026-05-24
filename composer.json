@@ -7,6 +7,9 @@
             "LiquidMonitorConnector\\": "src/"
         }
     },
+    "bin": [
+        "bin/triage-pull"
+    ],
     "require": {
         "php": ">=8.1",
         "nette/utils": "^3.0 || ^4.0",
@@ -17,7 +20,10 @@
         "nette/di": "~3.0",
         "guzzlehttp/guzzle": "^7.0",
         "nesbot/carbon": "^2.0 || ^3.0",
-        "liquiddesign/base": "^2.0.33"
+        "liquiddesign/base": "^2.0.33",
+        "symfony/console": "^7.0 || ^8.0",
+        "symfony/process": "^7.0 || ^8.0",
+        "symfony/dotenv": "^7.0 || ^8.0"
     },
     "require-dev": {
         "nette/tester": "^2.0",
