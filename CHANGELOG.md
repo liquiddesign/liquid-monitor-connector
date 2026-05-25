@@ -4,6 +4,25 @@
 All notable changes to this project will be documented in this file.
 <!--- END HEADER -->
 
+## [2.0.0](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.66...v2.0.0) (2026-05-25)
+
+### ⚠ BREAKING CHANGES
+
+* **cron:** `arguments` are now serialized as JSON instead of PHP `serialize()` on both the schedule-job request and the cron URL callback body. Producers (`Cron::scheduleOrStartJob(..., arguments: [...])`) and consumers (`Cron::getArguments()`) updated to JSON. Connectors ≤ v1.0.64 never used `arguments` and are unaffected. ([d674da5](https://github.com/liquiddesign/liquid-monitor-connector/commit/d674da52dca4be1c6ad0b67a9468b9851b57ecbf))
+
+### Features
+
+* **triage:** add `triage:pull` CLI worker with pluggable agents (Claude / Cursor) via `bin/triage-pull` ([0c72f5c](https://github.com/liquiddesign/liquid-monitor-connector/commit/0c72f5c5a54be107d2a99a6a280e1eef02e487eb))
+* **cron:** add `getCronOverview` method for batch cron stats retrieval ([fead89a](https://github.com/liquiddesign/liquid-monitor-connector/commit/fead89a243aa672741da61828127d96c2ac60e07))
+* **infra:** add Git hooks for commit message validation and pre-commit checks ([b48d738](https://github.com/liquiddesign/liquid-monitor-connector/commit/b48d738796d7fcc251f2e1a77921cb2f96b25af5))
+
+### Build
+
+* **cache:** set up temporary directories for PHPStan and add `.gitignore` ([dfb8925](https://github.com/liquiddesign/liquid-monitor-connector/commit/dfb8925c91842fcb6c0e7f63bc42690d7b16efac))
+
+
+---
+
 ## [1.0.63](https://github.com/liquiddesign/liquid-monitor-connector/compare/v1.0.62...v1.0.63) (2026-01-22)
 
 ### Features
