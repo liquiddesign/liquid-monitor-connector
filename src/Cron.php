@@ -470,12 +470,25 @@ class Cron
 			'headers' => [
 				'Accept' => 'application/json',
 				'Content-Type' => 'application/json',
+				Version::HEADER_NAME => Version::CURRENT,
 			],
 			'timeout' => 15,
 		];
 
 		try {
-			$client->post($url, $options);
+			$response = $client->post($url, $options);
+
+			if ($response->getHeaderLine(Version::STATUS_HEADER_NAME) === Version::STATUS_UNSUPPORTED) {
+				$supported = $response->getHeaderLine('X-Connector-Supported-Versions');
+				Debugger::log(
+					\sprintf(
+						'Liquid Monitor backend reports connector version %s as unsupported. Backend supports: %s. Upgrade liquiddesign/liquid-monitor-connector.',
+						Version::CURRENT,
+						$supported !== '' ? $supported : '(unknown)',
+					),
+					ILogger::WARNING,
+				);
+			}
 		} catch (\Exception $e) {
 			Debugger::log($e, 'connector');
 
