@@ -2,28 +2,19 @@
 
 declare(strict_types=1);
 
-namespace LiquidMonitorConnector\Triage;
+namespace LiquidMonitorConnector\Orchestrator;
 
 use Nette\Utils\Json;
 use Nette\Utils\JsonException;
 use Nette\Utils\Strings;
 
-/**
- * Parses agent stdout (Claude stream-json, Cursor stream-json) and extracts the final
- * triage payload from the last ```json fenced block in the agent's last text message.
- *
- * Stream-json formats differ across agents but both ultimately emit assistant text
- * containing a ```json … ``` block holding the triage result.
- */
-final class ResultExtractor
+final class JsonMilestoneParser
 {
 	/**
 	 * @return array<string, mixed>|null
 	 */
-	public function extract(string $stdout): ?array
+	public function extract(string $text): ?array
 	{
-		$text = $this->collectText($stdout);
-
 		if (!\preg_match_all('/```json\s*(.+?)\s*```/s', $text, $matches)) {
 			return null;
 		}
@@ -40,11 +31,7 @@ final class ResultExtractor
 		}
 	}
 
-	/**
-	 * Collect assistant text from stream-json output. If parsing as stream-json fails
-	 * (e.g. agent emitted plain text), return the raw stdout unchanged.
-	 */
-	private function collectText(string $stdout): string
+	public function collectTextFromOutput(string $stdout): string
 	{
 		$lines = \preg_split('/\r?\n/', Strings::trim($stdout)) ?: [];
 		$collected = '';
@@ -76,7 +63,6 @@ final class ResultExtractor
 	 */
 	private function extractTextFromEvent(array $event): string
 	{
-		// Claude stream-json: events shaped like { type:"assistant", message:{ content:[ {type:"text", text:"…"} ] } }
 		if (isset($event['message']['content']) && \is_array($event['message']['content'])) {
 			$buf = '';
 
@@ -91,12 +77,10 @@ final class ResultExtractor
 			}
 		}
 
-		// Cursor stream-json terminal event: { type:"result", subtype:"success", result:"…", … }
 		if (($event['type'] ?? null) === 'result' && \is_string($event['result'] ?? null)) {
 			return $event['result'];
 		}
 
-		// Other stream-json shapes (Cursor intermediate, custom): { text:"…" } or { content:"…" }
 		if (\is_string($event['text'] ?? null)) {
 			return $event['text'];
 		}

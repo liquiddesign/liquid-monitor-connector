@@ -1,0 +1,130 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+namespace LiquidMonitorConnector\Bin;
+
+use LiquidMonitorConnector\Orchestrator\Commands\OrchestratorRunCommand;
+use LiquidMonitorConnector\Orchestrator\MonitorClient;
+use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Output\ConsoleOutput;
+
+$autoloadCandidates = [
+	__DIR__ . '/../vendor/autoload.php',
+	__DIR__ . '/../../../autoload.php',
+];
+
+$autoloadFound = false;
+
+foreach ($autoloadCandidates as $candidate) {
+	if (\is_file($candidate)) {
+		require $candidate;
+		$autoloadFound = true;
+
+		break;
+	}
+}
+
+if (!$autoloadFound) {
+	\fwrite(\STDERR, "orchestrator-run: could not locate vendor/autoload.php\n");
+	exit(1);
+}
+
+$dotenvFile = \getcwd() !== false ? \getcwd() . '/.env' : null;
+
+if ($dotenvFile !== null && \is_file($dotenvFile)) {
+	(new \Symfony\Component\Dotenv\Dotenv())->load($dotenvFile);
+}
+
+$envOr = static function (string $name, string $default = ''): string {
+	$value = \getenv($name);
+
+	if ($value !== false && $value !== '') {
+		return $value;
+	}
+
+	$fromSuperglobal = $_ENV[$name] ?? $_SERVER[$name] ?? null;
+
+	if (\is_string($fromSuperglobal) && $fromSuperglobal !== '') {
+		return $fromSuperglobal;
+	}
+
+	return $default;
+};
+
+$rawArgs = $_SERVER['argv'] ?? [];
+\assert(\is_array($rawArgs));
+$scriptName = \array_shift($rawArgs);
+$scriptName = \is_string($scriptName) ? $scriptName : 'orchestrator-run';
+
+$opts = [
+	'monitor-url' => $envOr('ORCHESTRATOR_MONITOR_URL', $envOr('TRIAGE_MONITOR_URL', $envOr('MONITOR_URL', ''))),
+	'api-key' => $envOr('ORCHESTRATOR_API_KEY', $envOr('TRIAGE_API_KEY', '')),
+	'worker-id' => $envOr('ORCHESTRATOR_WORKER_ID', $envOr('TRIAGE_WORKER_ID', \gethostname() !== false ? \gethostname() : 'orchestrator')),
+	'max-concurrent' => (int) $envOr('ORCHESTRATOR_MAX_CONCURRENT', $envOr('TRIAGE_MAX_CONCURRENT', '1')),
+	'claude-binary' => $envOr('ORCHESTRATOR_CLAUDE_BINARY', $envOr('TRIAGE_CLAUDE_BINARY', 'claude')),
+	'turn-timeout' => (int) $envOr('ORCHESTRATOR_TURN_TIMEOUT', '900'),
+];
+
+$forward = [];
+
+foreach ($rawArgs as $arg) {
+	if (\str_starts_with($arg, '--')) {
+		$eq = \strpos($arg, '=');
+
+		if ($eq !== false) {
+			$name = \substr($arg, 2, $eq - 2);
+			$value = \substr($arg, $eq + 1);
+		} else {
+			$name = \substr($arg, 2);
+			$value = null;
+		}
+
+		if (\array_key_exists($name, $opts)) {
+			if ($value === null) {
+				\fwrite(\STDERR, "orchestrator-run: --{$name} requires a value\n");
+				exit(1);
+			}
+
+			if (\is_int($opts[$name])) {
+				$opts[$name] = (int) $value;
+			} else {
+				$opts[$name] = $value;
+			}
+
+			continue;
+		}
+	}
+
+	$forward[] = $arg;
+}
+
+$wantsHelp = \in_array('--help', $forward, true) || \in_array('-h', $forward, true);
+
+if (!$wantsHelp && ($opts['monitor-url'] === '' || $opts['api-key'] === '')) {
+	\fwrite(\STDERR, "orchestrator-run: --monitor-url and --api-key are required (or set ORCHESTRATOR_MONITOR_URL/ORCHESTRATOR_API_KEY)\n");
+	exit(1);
+}
+
+$monitor = new MonitorClient(
+	$opts['monitor-url'] !== '' ? $opts['monitor-url'] : 'http://invalid.local',
+	$opts['api-key'],
+);
+
+$command = new OrchestratorRunCommand(
+	monitor: $monitor,
+	workerId: $opts['worker-id'],
+	maxConcurrent: $opts['max-concurrent'],
+	claudeBinary: $opts['claude-binary'],
+	turnTimeoutSeconds: $opts['turn-timeout'],
+);
+
+$app = new Application('orchestrator-run', '1.0.0');
+$app->addCommand($command);
+$app->setDefaultCommand((string) $command->getName(), true);
+
+\array_unshift($forward, $scriptName);
+
+exit($app->run(new ArgvInput($forward), new ConsoleOutput()));

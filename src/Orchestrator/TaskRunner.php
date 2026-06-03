@@ -1,0 +1,161 @@
+<?php
+
+declare(strict_types=1);
+
+namespace LiquidMonitorConnector\Orchestrator;
+
+use Symfony\Component\Console\Output\OutputInterface;
+
+final class TaskRunner
+{
+	public function __construct(
+		private readonly MonitorClient $monitor,
+		private readonly WorktreeManager $worktrees,
+		private readonly TmuxClaudeDriver $tmux,
+		private readonly TurnCoordinator $coordinator,
+	) {
+	}
+
+	/**
+	 * @param array<string, mixed> $task
+	 * @param array<int, array<string, mixed>> $contextSources
+	 * @param array<string, mixed> $pollMeta
+	 */
+	public function run(array $task, array $contextSources, array $pollMeta, OutputInterface $output): void
+	{
+		$taskId = (int) ($task['id'] ?? 0);
+
+		if ($taskId <= 0) {
+			throw new \RuntimeException('Task is missing numeric id.');
+		}
+
+		$repoPath = (string) ($pollMeta['orchestrator_repo_path'] ?? '');
+
+		if ($repoPath === '') {
+			throw new \RuntimeException('orchestrator_repo_path is not configured on the project.');
+		}
+
+		$defaultBranch = (string) ($pollMeta['orchestrator_default_branch'] ?? 'prod');
+		$worktreePath = $this->worktrees->ensureWorktree($repoPath, $defaultBranch, $taskId);
+		$branchName = 'autonomy/task-' . $taskId;
+		$tmuxName = 'orch-' . $taskId;
+		$claudeSessionId = $this->uuid4();
+
+		$sessionResponse = $this->monitor->createSession([
+			'triage_task_id' => $taskId,
+			'claude_session_id' => $claudeSessionId,
+			'worktree_path' => $worktreePath,
+			'claude_session_cwd' => $worktreePath,
+			'branch_name' => $branchName,
+			'tmux_session_name' => $tmuxName,
+			'state' => 'running',
+		]);
+
+		/** @var array<string, mixed> $session */
+		$session = $sessionResponse['data'] ?? $sessionResponse;
+		$sessionId = (int) ($session['id'] ?? 0);
+
+		if ($sessionId <= 0) {
+			throw new \RuntimeException('Failed to create agent session.');
+		}
+
+		$this->monitor->createEvent([
+			'agent_session_id' => $sessionId,
+			'triage_task_id' => $taskId,
+			'event_type' => 'session_started',
+			'payload' => ['worktree_path' => $worktreePath],
+		]);
+
+		$deliveryUuid = $this->uuid4();
+		$brief = $this->buildBrief($task, $contextSources, $deliveryUuid);
+		$messageResponse = $this->monitor->createMessage([
+			'agent_session_id' => $sessionId,
+			'delivery_uuid' => $deliveryUuid,
+			'phase' => 'assess',
+			'body' => $brief,
+		]);
+
+		/** @var array<string, mixed> $messageData */
+		$messageData = $messageResponse['data'] ?? $messageResponse;
+		$messageId = (int) ($messageData['id'] ?? 0);
+
+		$output->writeln(\sprintf('<info>Task #%d: starting tmux session %s</info>', $taskId, $tmuxName));
+
+		$this->tmux->startNew($tmuxName, $worktreePath, $claudeSessionId);
+		\sleep(5);
+
+		$rename = \sprintf(
+			'/rename %s — %s',
+			(string) ($task['ticket_number'] ?? '#' . $taskId),
+			(string) ($task['external_title'] ?? 'task'),
+		);
+		$this->tmux->sendKeys($tmuxName, $rename);
+		\sleep(2);
+		$this->tmux->sendKeys($tmuxName, $brief);
+
+		$this->monitor->patchMessage($messageId, ['delivery_status' => 'delivering']);
+
+		$milestone = $this->coordinator->waitForMilestone($tmuxName, $output);
+
+		$this->monitor->patchMessage($messageId, [
+			'delivery_status' => 'delivered',
+			'delivered_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
+		]);
+
+		$this->coordinator->finalizeTurn($session, $task, $pollMeta, $milestone, 1, $output);
+	}
+
+	/**
+	 * @param array<string, mixed> $task
+	 * @param array<int, array<string, mixed>> $contextSources
+	 */
+	private function buildBrief(array $task, array $contextSources, string $deliveryUuid): string
+	{
+		$skillBlocks = [];
+
+		foreach ($contextSources as $source) {
+			if (\is_string($source['skill_md'] ?? null) && $source['skill_md'] !== '') {
+				$type = (string) ($source['type'] ?? 'context');
+				$skillBlocks[] = "## skill: {$type}\n\n" . $source['skill_md'];
+			}
+		}
+
+		$skills = $skillBlocks === [] ? '' : "\n\n# Skills\n\n" . \implode("\n\n", $skillBlocks) . "\n";
+		$ticket = (string) ($task['ticket_number'] ?? '#' . ($task['id'] ?? '?'));
+		$title = (string) ($task['external_title'] ?? '');
+		$url = (string) ($task['external_url'] ?? '');
+		$source = (string) ($task['source'] ?? 'unknown');
+
+		$body = <<<MARKDOWN
+You are an autonomous programming agent working in a git worktree on branch autonomy/task-{$task['id']}.
+
+Task {$ticket} from "{$source}":
+Title: {$title}
+URL: {$url}
+{$skills}
+Phases in this turn: assess the assignment, then either answer, implement a code change, or hand off.
+
+When finished, emit a SINGLE ```json fenced block with:
+  - phase: "assess" | "work" | "review_prep"
+  - category: "answer" | "needs_work" | "implemented" | "handoff" | "unclear" | "error"
+  - confidence: "low" | "medium" | "high"
+  - draft_response_md: markdown for human review
+  - reasoning_md: optional
+  - requires_test: boolean (true if you changed code and tests should run)
+  - context_sources: string[]
+  - tools_called: array of {tool,count}
+  - input_tokens, output_tokens, estimated_cost_usd: best-effort numbers
+MARKDOWN;
+
+		return "[Orchestrator | phase=assess | msg={$deliveryUuid}]\n\n" . $body;
+	}
+
+	private function uuid4(): string
+	{
+		$bytes = \random_bytes(16);
+		$bytes[6] = \chr(\ord($bytes[6]) & 0x0f | 0x40);
+		$bytes[8] = \chr(\ord($bytes[8]) & 0x3f | 0x80);
+
+		return \vsprintf('%s%s-%s-%s-%s-%s%s%s', \str_split(\bin2hex($bytes), 4));
+	}
+}
