@@ -1,0 +1,222 @@
+#!/usr/bin/env php
+<?php
+
+/**
+ * Claude Code hook for orchestrator agent sessions. Intentionally autoload-free —
+ * it runs on every tool call and must start fast.
+ *
+ * PreToolUse (Bash|Edit|Write): denies forbidden git operations, rm -rf, and edits
+ * of the orchestrator's own control files (.orchestrator/* except milestone.json).
+ * Policy comes from <cwd>/.orchestrator/policy.json written by PolicySettingsWriter.
+ *
+ * Stop: when a turn is open (turn-state.json exists), blocks stopping until
+ * <cwd>/.orchestrator/milestone.json contains a valid milestone JSON object.
+ */
+
+declare(strict_types=1);
+
+/**
+ * @param array<string, mixed> $input
+ */
+function guardPreToolUse(array $input, string $cwd): void
+{
+	$toolName = \is_string($input['tool_name'] ?? null) ? $input['tool_name'] : '';
+	$toolInput = \is_array($input['tool_input'] ?? null) ? $input['tool_input'] : [];
+
+	$policy = ['repo_mode' => false, 'deny_git' => []];
+	$policyFile = $cwd . '/.orchestrator/policy.json';
+
+	if (\is_file($policyFile)) {
+		$decoded = \json_decode((string) \file_get_contents($policyFile), true);
+
+		if (\is_array($decoded)) {
+			$policy['repo_mode'] = (bool) ($decoded['repo_mode'] ?? false);
+			$policy['deny_git'] = \is_array($decoded['deny_git'] ?? null) ? $decoded['deny_git'] : [];
+		}
+	}
+
+	if ($toolName === 'Bash') {
+		$command = \is_string($toolInput['command'] ?? null) ? $toolInput['command'] : '';
+		$reason = guardBashDenyReason($command, $policy);
+
+		if ($reason !== null) {
+			guardDeny($reason);
+		}
+
+		return;
+	}
+
+	if ($toolName === 'Edit' || $toolName === 'Write') {
+		$filePath = \is_string($toolInput['file_path'] ?? null) ? $toolInput['file_path'] : '';
+		$reason = guardControlFileDenyReason($filePath);
+
+		if ($reason !== null) {
+			guardDeny($reason);
+		}
+	}
+}
+
+/**
+ * @param array{repo_mode: bool, deny_git: array<int, mixed>} $policy
+ */
+function guardBashDenyReason(string $command, array $policy): ?string
+{
+	if ($command === '') {
+		return null;
+	}
+
+	$deniedGit = ['push'];
+
+	if ($policy['repo_mode']) {
+		foreach ($policy['deny_git'] as $operation) {
+			if (\is_string($operation) && $operation !== '') {
+				$deniedGit[] = $operation;
+			}
+		}
+	}
+
+	foreach (\array_unique($deniedGit) as $operation) {
+		$pattern = '/\bgit\b[^|&;]*?\b' . \preg_quote($operation, '/') . '\b/';
+
+		if (\preg_match($pattern, $command) === 1) {
+			return \sprintf(
+				'Orchestrator policy: `git %s` is not allowed in this session. Work without it and report in your milestone.',
+				$operation,
+			);
+		}
+	}
+
+	if (\preg_match('/\brm\b[^|&;]*\s-[a-zA-Z]*(?:rf|fr)[a-zA-Z]*\b/', $command) === 1
+		|| \preg_match('/\brm\b[^|&;]*\s-[a-zA-Z]*r[a-zA-Z]*\s+(?:[^|&;]*\s)?-[a-zA-Z]*f/', $command) === 1
+		|| \preg_match('/\brm\b[^|&;]*\s-[a-zA-Z]*f[a-zA-Z]*\s+(?:[^|&;]*\s)?-[a-zA-Z]*r/', $command) === 1) {
+		return 'Orchestrator policy: recursive force delete (rm -rf) is not allowed in this session.';
+	}
+
+	return null;
+}
+
+function guardControlFileDenyReason(string $filePath): ?string
+{
+	if ($filePath === '' || \strpos($filePath, '.orchestrator/') === false) {
+		return null;
+	}
+
+	$relative = \substr($filePath, (int) \strpos($filePath, '.orchestrator/'));
+
+	if ($relative === '.orchestrator/milestone.json') {
+		return null;
+	}
+
+	$protected = [
+		'.orchestrator/turn-state.json',
+		'.orchestrator/policy.json',
+		'.orchestrator/claude-settings.json',
+	];
+
+	if (\in_array($relative, $protected, true) || \strpos($relative, '.orchestrator/outbox/') === 0) {
+		return \sprintf(
+			'Orchestrator policy: %s is an orchestrator control file — agents may only write .orchestrator/milestone.json.',
+			$relative,
+		);
+	}
+
+	return null;
+}
+
+function guardDeny(string $reason): never
+{
+	echo \json_encode([
+		'hookSpecificOutput' => [
+			'hookEventName' => 'PreToolUse',
+			'permissionDecision' => 'deny',
+			'permissionDecisionReason' => $reason,
+		],
+	]);
+	exit(0);
+}
+
+/**
+ * @param array<string, mixed> $input
+ */
+function guardStop(array $input, string $cwd): void
+{
+	// Already blocked once this stop cycle — let the cron nudge handle persistent refusal.
+	if (($input['stop_hook_active'] ?? false) === true) {
+		exit(0);
+	}
+
+	// No open turn (e.g. session resumed for ad-hoc inspection) — nothing to enforce.
+	if (!\is_file($cwd . '/.orchestrator/turn-state.json')) {
+		exit(0);
+	}
+
+	$milestoneFile = $cwd . '/.orchestrator/milestone.json';
+
+	$reason = guardMilestoneBlockReason($milestoneFile);
+
+	if ($reason !== null) {
+		guardBlockStop($reason);
+	}
+}
+
+function guardMilestoneBlockReason(string $milestoneFile): ?string
+{
+	if (!\is_file($milestoneFile)) {
+		return 'You have an open orchestrator turn but no milestone file. Write your milestone as a raw JSON object to .orchestrator/milestone.json before stopping.';
+	}
+
+	$decoded = \json_decode((string) \file_get_contents($milestoneFile), true);
+
+	if (!\is_array($decoded)) {
+		return 'The file .orchestrator/milestone.json is not valid JSON. Rewrite it as a single raw JSON object (no markdown fences, no prose).';
+	}
+
+	$allowed = [
+		'phase' => ['assess', 'work', 'review_prep'],
+		'category' => ['answer', 'needs_work', 'implemented', 'handoff', 'unclear', 'error'],
+		'confidence' => ['low', 'medium', 'high'],
+	];
+
+	foreach ($allowed as $key => $values) {
+		$value = $decoded[$key] ?? null;
+
+		if (!\is_string($value) || !\in_array($value, $values, true)) {
+			return \sprintf(
+				'Milestone key "%s" is missing or invalid in .orchestrator/milestone.json — it must be one of: %s.',
+				$key,
+				\implode(', ', $values),
+			);
+		}
+	}
+
+	return null;
+}
+
+function guardBlockStop(string $reason): never
+{
+	echo \json_encode(['decision' => 'block', 'reason' => $reason]);
+	\fwrite(\STDERR, $reason);
+	exit(2);
+}
+
+$raw = \stream_get_contents(\STDIN);
+$input = \json_decode($raw === false ? '' : $raw, true);
+
+if (!\is_array($input)) {
+	exit(0);
+}
+
+$event = \is_string($input['hook_event_name'] ?? null) ? $input['hook_event_name'] : '';
+$cwd = \is_string($input['cwd'] ?? null) ? \rtrim($input['cwd'], '/') : '';
+
+if ($cwd === '') {
+	exit(0);
+}
+
+if ($event === 'PreToolUse') {
+	guardPreToolUse($input, $cwd);
+} elseif ($event === 'Stop') {
+	guardStop($input, $cwd);
+}
+
+exit(0);

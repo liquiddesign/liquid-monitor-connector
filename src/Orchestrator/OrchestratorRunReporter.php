@@ -15,11 +15,15 @@ final class OrchestratorRunReporter
 	{
 	}
 
-	public function runHeader(string $workerId, int $capacity, string $repoPath): void
+	public function runHeader(string $workerId, ?int $capacity, string $repoPath): void
 	{
 		$this->output->writeln('');
 		$this->output->writeln('<comment>── Orchestrator run ─────────────────────────────</comment>');
-		$this->output->writeln(\sprintf('Worker <info>%s</info> · capacity <info>%d</info> new task(s) per run', $workerId, $capacity));
+		$this->output->writeln(\sprintf(
+			'Worker <info>%s</info> · capacity <info>%s</info> new task(s) per run',
+			$workerId,
+			$capacity === null ? 'auto (monitor)' : (string) $capacity,
+		));
 
 		if ($repoPath === '') {
 			return;

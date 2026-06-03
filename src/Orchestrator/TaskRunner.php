@@ -15,6 +15,7 @@ final class TaskRunner
 		private readonly TurnCoordinator $coordinator,
 		private readonly TurnStateStore $turnStates,
 		private readonly ContextBundles $bundles,
+		private readonly PolicySettingsWriter $policyWriter,
 		private readonly ?OrchestratorRunReporter $reporter = null,
 	) {
 	}
@@ -62,8 +63,9 @@ final class TaskRunner
 			$branchName = $this->worktrees->currentBranch($worktreePath) ?? $defaultBranch;
 		}
 
-		$tmuxName = 'orch-' . $taskId;
-		$claudeSessionId = $this->uuid4();
+		$projectId = (int) ($pollMeta['project_id'] ?? 0);
+		$tmuxName = \sprintf('orch-p%d-t%d', $projectId, $taskId);
+		$claudeSessionId = Uuid::v4();
 
 		$sessionResponse = $this->monitor->createSession([
 			'triage_task_id' => $taskId,
@@ -90,7 +92,7 @@ final class TaskRunner
 			'payload' => ['worktree_path' => $worktreePath],
 		]);
 
-		$deliveryUuid = $this->uuid4();
+		$deliveryUuid = Uuid::v4();
 		$brief = $this->buildBrief($task, $contextSources, $deliveryUuid, $useWorktrees, $worktreePath, $branchName);
 		$messageResponse = $this->monitor->createMessage([
 			'agent_session_id' => $sessionId,
@@ -112,13 +114,14 @@ final class TaskRunner
 		$merged = $this->bundles->merge($contextSources);
 
 		$this->coordinator->prepareForTurn($worktreePath);
+		$settingsPath = $this->policyWriter->write($worktreePath, $settings, $merged, !$useWorktrees);
 		$this->tmux->startNew(
 			$tmuxName,
 			$worktreePath,
 			$claudeSessionId,
 			$merged['env'],
 			$merged['add_dirs'],
-			$merged['allowed_tools'],
+			$settingsPath,
 		);
 		\sleep(8);
 
@@ -211,14 +214,5 @@ The JSON object must have these keys:
 MARKDOWN;
 
 		return "[Orchestrator | phase=assess | msg={$deliveryUuid}]\n\n" . $body;
-	}
-
-	private function uuid4(): string
-	{
-		$bytes = \random_bytes(16);
-		$bytes[6] = \chr(\ord($bytes[6]) & 0x0f | 0x40);
-		$bytes[8] = \chr(\ord($bytes[8]) & 0x3f | 0x80);
-
-		return \vsprintf('%s%s-%s-%s-%s-%s%s%s', \str_split(\bin2hex($bytes), 4));
 	}
 }

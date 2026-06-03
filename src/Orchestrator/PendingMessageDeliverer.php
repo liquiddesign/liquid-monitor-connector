@@ -14,6 +14,7 @@ final class PendingMessageDeliverer
 		private readonly TurnCoordinator $coordinator,
 		private readonly TurnStateStore $turnStates,
 		private readonly ContextBundles $bundles,
+		private readonly PolicySettingsWriter $policyWriter,
 	) {
 	}
 
@@ -28,6 +29,7 @@ final class PendingMessageDeliverer
 		/** @var array<int, array<string, mixed>> $contextSources */
 		$contextSources = \is_array($pollMeta['context_sources'] ?? null) ? $pollMeta['context_sources'] : [];
 		$merged = $this->bundles->merge($contextSources);
+		$settings = \is_array($pollMeta['orchestrator_settings'] ?? null) ? $pollMeta['orchestrator_settings'] : [];
 		$delivered = 0;
 
 		foreach ($sessions as $session) {
@@ -55,7 +57,7 @@ final class PendingMessageDeliverer
 				continue;
 			}
 
-			if (!$this->deliverOne($session, $messages[0], $merged, $output)) {
+			if (!$this->deliverOne($session, $messages[0], $merged, $settings, $output)) {
 				continue;
 			}
 
@@ -69,8 +71,9 @@ final class PendingMessageDeliverer
 	 * @param array<string, mixed> $session
 	 * @param array<string, mixed> $message
 	 * @param array{env: array<string, string>, add_dirs: array<int, string>, allowed_tools: array<int, string>} $merged
+	 * @param array<string, mixed> $settings
 	 */
-	private function deliverOne(array $session, array $message, array $merged, OutputInterface $output): bool
+	private function deliverOne(array $session, array $message, array $merged, array $settings, OutputInterface $output): bool
 	{
 		$messageId = (int) ($message['id'] ?? 0);
 		$tmuxName = (string) ($session['tmux_session_name'] ?? '');
@@ -105,13 +108,16 @@ final class PendingMessageDeliverer
 
 		if (!$this->tmux->sessionExists($tmuxName)) {
 			if ($claudeSessionId !== '') {
+				// Settings are a per-launch layer — regenerate them for resume too.
+				$useWorktrees = (bool) ($settings['use_worktrees'] ?? false);
+				$settingsPath = $this->policyWriter->write($cwd, $settings, $merged, !$useWorktrees);
 				$this->tmux->resume(
 					$tmuxName,
 					$cwd,
 					$claudeSessionId,
 					$merged['env'],
 					$merged['add_dirs'],
-					$merged['allowed_tools'],
+					$settingsPath,
 				);
 				$this->monitor->patchSession($sessionId, [
 					'state' => 'running',

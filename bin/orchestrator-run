@@ -78,13 +78,16 @@ $rawArgs = $_SERVER['argv'] ?? [];
 $scriptName = \array_shift($rawArgs);
 $scriptName = \is_string($scriptName) ? $scriptName : 'orchestrator-run';
 
+// Only monitor-url + api-key are required locally. Capacity, claude binary and
+// turn timeout live in orchestrator_settings on the monitor; the env/CLI values
+// below are optional debugging overrides (empty string = use monitor settings).
 $opts = [
 	'monitor-url' => $envOr('ORCHESTRATOR_MONITOR_URL', $envOr('TRIAGE_MONITOR_URL', $envOr('MONITOR_URL', ''))),
-	'api-key' => $envOr('ORCHESTRATOR_API_KEY', $envOr('TRIAGE_API_KEY', '')),
+	'api-key' => $envOr('ORCHESTRATOR_API_KEY', $envOr('TRIAGE_API_KEY', $envOr('API_KEY', ''))),
 	'worker-id' => $envOr('ORCHESTRATOR_WORKER_ID', $envOr('TRIAGE_WORKER_ID', \gethostname() !== false ? \gethostname() : 'orchestrator')),
-	'max-concurrent' => (int) $envOr('ORCHESTRATOR_MAX_CONCURRENT', $envOr('TRIAGE_MAX_CONCURRENT', '1')),
-	'claude-binary' => $envOr('ORCHESTRATOR_CLAUDE_BINARY', $envOr('TRIAGE_CLAUDE_BINARY', 'claude')),
-	'turn-timeout' => (int) $envOr('ORCHESTRATOR_TURN_TIMEOUT', '900'),
+	'max-concurrent' => $envOr('ORCHESTRATOR_MAX_CONCURRENT', $envOr('TRIAGE_MAX_CONCURRENT', '')),
+	'claude-binary' => $envOr('ORCHESTRATOR_CLAUDE_BINARY', $envOr('TRIAGE_CLAUDE_BINARY', '')),
+	'turn-timeout' => $envOr('ORCHESTRATOR_TURN_TIMEOUT', ''),
 ];
 
 $forward = [];
@@ -112,11 +115,7 @@ foreach ($rawArgs as $arg) {
 				exit(1);
 			}
 
-			if (\is_int($opts[$name])) {
-				$opts[$name] = (int) $value;
-			} else {
-				$opts[$name] = $value;
-			}
+			$opts[$name] = $value;
 
 			continue;
 		}
@@ -140,9 +139,9 @@ $monitor = new MonitorClient(
 $command = new OrchestratorRunCommand(
 	monitor: $monitor,
 	workerId: $opts['worker-id'],
-	maxConcurrent: $opts['max-concurrent'],
-	claudeBinary: $opts['claude-binary'],
-	turnTimeoutSeconds: $opts['turn-timeout'],
+	maxConcurrent: $opts['max-concurrent'] !== '' ? (int) $opts['max-concurrent'] : null,
+	claudeBinary: $opts['claude-binary'] !== '' ? $opts['claude-binary'] : null,
+	turnTimeoutSeconds: $opts['turn-timeout'] !== '' ? (int) $opts['turn-timeout'] : null,
 );
 
 $app = new Application('orchestrator-run', '1.0.0');

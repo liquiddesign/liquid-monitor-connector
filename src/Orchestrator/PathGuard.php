@@ -25,7 +25,8 @@ final class PathGuard
 		$process->run();
 
 		if (!$process->isSuccessful()) {
-			return false;
+			// Fail closed: if git cannot tell us what changed, assume restricted paths were touched.
+			return true;
 		}
 
 		foreach (\preg_split('/\r?\n/', Strings::trim($process->getOutput())) ?: [] as $file) {

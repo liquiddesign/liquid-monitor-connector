@@ -31,7 +31,6 @@ final class TmuxClaudeDriver
 	/**
 	 * @param array<string, string> $env
 	 * @param array<int, string> $addDirs
-	 * @param array<int, string> $allowedTools
 	 */
 	public function startNew(
 		string $tmuxSession,
@@ -39,15 +38,14 @@ final class TmuxClaudeDriver
 		string $claudeSessionId,
 		array $env = [],
 		array $addDirs = [],
-		array $allowedTools = [],
+		?string $settingsPath = null,
 	): void {
-		$this->launch($tmuxSession, $cwd, '--session-id', $claudeSessionId, $env, $addDirs, $allowedTools);
+		$this->launch($tmuxSession, $cwd, '--session-id', $claudeSessionId, $env, $addDirs, $settingsPath);
 	}
 
 	/**
 	 * @param array<string, string> $env
 	 * @param array<int, string> $addDirs
-	 * @param array<int, string> $allowedTools
 	 */
 	public function resume(
 		string $tmuxSession,
@@ -55,9 +53,9 @@ final class TmuxClaudeDriver
 		string $claudeSessionId,
 		array $env = [],
 		array $addDirs = [],
-		array $allowedTools = [],
+		?string $settingsPath = null,
 	): void {
-		$this->launch($tmuxSession, $cwd, '--resume', $claudeSessionId, $env, $addDirs, $allowedTools);
+		$this->launch($tmuxSession, $cwd, '--resume', $claudeSessionId, $env, $addDirs, $settingsPath);
 	}
 
 	/**
@@ -115,7 +113,6 @@ final class TmuxClaudeDriver
 	/**
 	 * @param array<string, string> $env
 	 * @param array<int, string> $addDirs
-	 * @param array<int, string> $allowedTools
 	 */
 	private function launch(
 		string $tmuxSession,
@@ -124,7 +121,7 @@ final class TmuxClaudeDriver
 		string $claudeSessionId,
 		array $env,
 		array $addDirs,
-		array $allowedTools,
+		?string $settingsPath,
 	): void {
 		if ($this->sessionExists($tmuxSession)) {
 			$this->kill($tmuxSession);
@@ -155,10 +152,8 @@ final class TmuxClaudeDriver
 			$cmd .= ' --add-dir ' . \escapeshellarg($dir);
 		}
 
-		$tools = \array_values(\array_filter($allowedTools, static fn (string $t): bool => $t !== ''));
-
-		if ($tools !== []) {
-			$cmd .= ' --allowedTools ' . \implode(' ', \array_map('escapeshellarg', $tools));
+		if ($settingsPath !== null && $settingsPath !== '') {
+			$cmd .= ' --settings ' . \escapeshellarg($settingsPath);
 		}
 
 		$process = new Process([

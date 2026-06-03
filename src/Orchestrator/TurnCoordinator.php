@@ -19,6 +19,7 @@ final class TurnCoordinator
 		private readonly TmuxClaudeDriver $tmux,
 		private readonly PathGuard $pathGuard,
 		private readonly TurnStateStore $turnStates,
+		private readonly Outbox $outbox,
 	) {
 	}
 
@@ -46,6 +47,11 @@ final class TurnCoordinator
 	}
 
 	/**
+	 * Finalize a turn without losing data on a monitor outage: all local work
+	 * (path guard, tests, diff stat) happens first, then the complete set of API
+	 * payloads is persisted to the outbox BEFORE any API call. From that point the
+	 * turn is owned by the outbox — tmux is killed, milestone/turn-state cleared,
+	 * and the API calls are replayed (idempotently) until they all succeed.
 	 * @param array<string, mixed> $session
 	 * @param array<string, mixed> $task
 	 * @param array<string, mixed> $pollMeta
@@ -73,33 +79,11 @@ final class TurnCoordinator
 			$milestone['draft_response_md'] = ($milestone['draft_response_md'] ?? '') . "\n\n_(Orchestrator: changed restricted paths — handed off for human review.)_";
 		}
 
-		$turnResponse = $this->monitor->createTurn([
-			'agent_session_id' => $sessionId,
-			'triage_task_id' => $taskId,
-			'turn_number' => $turnNumber,
-			'phase' => (string) ($milestone['phase'] ?? 'work'),
-			'category' => $category,
-			'raw_output_json' => $milestone,
-		]);
-
-		/** @var array<string, mixed> $turnData */
-		$turnData = $turnResponse['data'] ?? $turnResponse;
-		$turnId = (int) ($turnData['id'] ?? 0);
-
-		$verified = false;
+		$turnCategory = $category;
+		$verified = true;
 
 		if ($category === 'implemented' || ($milestone['requires_test'] ?? false) === true) {
 			$verified = $this->runComposerTest($worktreePath, $output);
-			$this->monitor->patchTurn($turnId, [
-				'orchestrator_verified' => $verified,
-				'completed_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
-			]);
-		} else {
-			$this->monitor->patchTurn($turnId, [
-				'orchestrator_verified' => true,
-				'completed_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
-			]);
-			$verified = true;
 		}
 
 		if (!$verified && $category === 'implemented') {
@@ -107,52 +91,84 @@ final class TurnCoordinator
 		}
 
 		$gitDiffStat = $this->gitDiffStat($worktreePath);
+		$now = (new \DateTimeImmutable())->format(\DATE_ATOM);
 
-		$this->monitor->postResult($taskId, [
-			'category' => $category,
-			'draft_response_md' => (string) ($milestone['draft_response_md'] ?? ''),
-			'reasoning_md' => (string) ($milestone['reasoning_md'] ?? ''),
-			'confidence' => (string) ($milestone['confidence'] ?? 'medium'),
-			'context_sources' => $milestone['context_sources'] ?? [],
-			'tools_called' => $milestone['tools_called'] ?? [],
-			'input_tokens' => isset($milestone['input_tokens']) ? (int) $milestone['input_tokens'] : null,
-			'output_tokens' => isset($milestone['output_tokens']) ? (int) $milestone['output_tokens'] : null,
-			'estimated_cost_usd' => isset($milestone['estimated_cost_usd']) ? (float) $milestone['estimated_cost_usd'] : null,
-			'provider' => 'anthropic',
-			'orchestrator_metadata' => [
-				'git_diff_stat' => $gitDiffStat,
+		$entry = [
+			'task_id' => $taskId,
+			'session_id' => $sessionId,
+			'create_turn' => [
+				'agent_session_id' => $sessionId,
+				'triage_task_id' => $taskId,
+				'idempotency_key' => Uuid::v4(),
 				'turn_number' => $turnNumber,
-				'verified' => $verified,
+				'phase' => (string) ($milestone['phase'] ?? 'work'),
+				'category' => $turnCategory,
+				'raw_output_json' => $milestone,
+				'orchestrator_verified' => $verified,
+				'completed_at' => $now,
 			],
-		]);
+			'post_result' => [
+				'idempotency_key' => Uuid::v4(),
+				'category' => $category,
+				'draft_response_md' => (string) ($milestone['draft_response_md'] ?? ''),
+				'reasoning_md' => (string) ($milestone['reasoning_md'] ?? ''),
+				'confidence' => (string) ($milestone['confidence'] ?? 'medium'),
+				'context_sources' => $milestone['context_sources'] ?? [],
+				'tools_called' => $milestone['tools_called'] ?? [],
+				'input_tokens' => isset($milestone['input_tokens']) ? (int) $milestone['input_tokens'] : null,
+				'output_tokens' => isset($milestone['output_tokens']) ? (int) $milestone['output_tokens'] : null,
+				'estimated_cost_usd' => isset($milestone['estimated_cost_usd']) ? (float) $milestone['estimated_cost_usd'] : null,
+				'provider' => 'anthropic',
+				'orchestrator_metadata' => [
+					'git_diff_stat' => $gitDiffStat,
+					'turn_number' => $turnNumber,
+					'verified' => $verified,
+				],
+			],
+			'patch_task' => [
+				'status' => 'completed',
+				'finished_at' => $now,
+			],
+			'create_event' => [
+				'agent_session_id' => $sessionId,
+				'triage_task_id' => $taskId,
+				'event_type' => 'turn_completed',
+				'payload' => ['category' => $category, 'verified' => $verified],
+			],
+			'patch_session' => [
+				'state' => 'suspended',
+				'suspended_at' => $now,
+				'last_activity_at' => $now,
+			],
+		];
 
-		$this->monitor->patchTask($taskId, [
-			'status' => 'completed',
-			'finished_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
-		]);
+		$outboxRoot = $this->outboxRoot($pollMeta, $worktreePath);
+		$key = \sprintf('task%d-turn%d-%s', $taskId, $turnNumber, Uuid::v4());
+		$this->outbox->enqueue($outboxRoot, $key, $entry);
 
-		$this->monitor->createEvent([
-			'agent_session_id' => $sessionId,
-			'triage_task_id' => $taskId,
-			'event_type' => 'turn_completed',
-			'payload' => ['category' => $category, 'verified' => $verified],
-		]);
-
+		// The turn is now owned by the outbox — release the tmux pane and the repo mutex.
 		if ($tmuxName !== '') {
 			$this->tmux->kill($tmuxName);
 		}
-
-		$this->monitor->patchSession($sessionId, [
-			'state' => 'suspended',
-			'suspended_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
-			'last_activity_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
-		]);
 
 		if ($worktreePath !== '') {
 			$this->prepareForTurn($worktreePath);
 		}
 
+		$this->outbox->flush($outboxRoot, $this->monitor, $output);
+
 		$output->writeln(\sprintf('<info>Task #%d: result posted (%s), session suspended.</info>', $taskId, $category));
+	}
+
+	/**
+	 * @param array<string, mixed> $pollMeta
+	 */
+	private function outboxRoot(array $pollMeta, string $worktreePath): string
+	{
+		$repoPath = \rtrim((string) ($pollMeta['orchestrator_repo_path'] ?? ''), '/');
+		$base = $repoPath !== '' ? $repoPath : \rtrim($worktreePath, '/');
+
+		return $base . '/' . Outbox::OUTBOX_RELATIVE_PATH;
 	}
 
 	private function runComposerTest(string $worktreePath, OutputInterface $output): bool

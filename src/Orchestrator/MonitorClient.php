@@ -61,18 +61,24 @@ final class MonitorClient
 	}
 
 	/**
+	 * Active-session counts are server-authoritative — the worker no longer reports
+	 * them. A null capacity lets the monitor default to max_concurrent_sessions.
 	 * @param array<int, int> $inFlight
 	 * @return array<string, mixed>
 	 */
-	public function poll(string $workerId, int $capacity, array $inFlight, int $activeSessions): array
+	public function poll(string $workerId, ?int $capacity, array $inFlight = []): array
 	{
+		$payload = [
+			'worker_id' => $workerId,
+			'in_flight' => $inFlight,
+		];
+
+		if ($capacity !== null) {
+			$payload['capacity'] = $capacity;
+		}
+
 		$response = $this->client->post('api/orchestrator/worker/poll', [
-			'json' => [
-				'worker_id' => $workerId,
-				'capacity' => $capacity,
-				'in_flight' => $inFlight,
-				'active_sessions' => $activeSessions,
-			],
+			'json' => $payload,
 		]);
 
 		/** @var array<string, mixed> $decoded */
@@ -167,14 +173,6 @@ final class MonitorClient
 		$decoded = Json::decode((string) $response->getBody(), Json::FORCE_ARRAY);
 
 		return $decoded;
-	}
-
-	/**
-	 * @param array<string, mixed> $patch
-	 */
-	public function patchTurn(int $turnId, array $patch): void
-	{
-		$this->client->patch('api/orchestrator/turns/' . $turnId, ['json' => $patch]);
 	}
 
 	/**

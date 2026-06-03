@@ -9,12 +9,15 @@ use LiquidMonitorConnector\Orchestrator\ContextBundles;
 use LiquidMonitorConnector\Orchestrator\JsonMilestoneParser;
 use LiquidMonitorConnector\Orchestrator\MonitorClient;
 use LiquidMonitorConnector\Orchestrator\OrchestratorRunReporter;
+use LiquidMonitorConnector\Orchestrator\Outbox;
 use LiquidMonitorConnector\Orchestrator\PathGuard;
 use LiquidMonitorConnector\Orchestrator\PendingMessageDeliverer;
+use LiquidMonitorConnector\Orchestrator\PolicySettingsWriter;
 use LiquidMonitorConnector\Orchestrator\RunLock;
 use LiquidMonitorConnector\Orchestrator\SessionSuspender;
 use LiquidMonitorConnector\Orchestrator\TaskRunner;
 use LiquidMonitorConnector\Orchestrator\TmuxClaudeDriver;
+use LiquidMonitorConnector\Orchestrator\TmuxReaper;
 use LiquidMonitorConnector\Orchestrator\TurnCollector;
 use LiquidMonitorConnector\Orchestrator\TurnCoordinator;
 use LiquidMonitorConnector\Orchestrator\TurnStateStore;
@@ -30,12 +33,17 @@ use Throwable;
 #[AsCommand(name: 'orchestrator:run', description: 'Poll Liquid Monitor orchestrator API, run tasks in tmux + Claude REPL.')]
 final class OrchestratorRunCommand extends Command
 {
+	/**
+	 * Capacity / claude binary / turn timeout are normally configured on the monitor
+	 * (orchestrator_settings) — the nullable constructor args are optional local
+	 * overrides for debugging.
+	 */
 	public function __construct(
 		private readonly MonitorClient $monitor,
 		private readonly string $workerId,
-		private readonly int $maxConcurrent = 1,
-		private readonly string $claudeBinary = 'claude',
-		private readonly int $turnTimeoutSeconds = 900,
+		private readonly ?int $maxConcurrent = null,
+		private readonly ?string $claudeBinary = null,
+		private readonly ?int $turnTimeoutSeconds = null,
 	) {
 		parent::__construct();
 	}
@@ -81,7 +89,7 @@ final class OrchestratorRunCommand extends Command
 				return self::SUCCESS;
 			}
 
-			$poll = $this->monitor->poll($this->workerId, $this->maxConcurrent, [], 0);
+			$poll = $this->monitor->poll($this->workerId, $this->maxConcurrent);
 		} catch (GuzzleException $e) {
 			$output->writeln('<error>Monitor request failed: ' . $e->getMessage() . '</error>');
 
@@ -101,8 +109,25 @@ final class OrchestratorRunCommand extends Command
 		}
 
 		$repoPath = (string) ($poll['orchestrator_repo_path'] ?? '');
+		$projectId = (int) ($poll['project_id'] ?? 0);
 		/** @var array<string, mixed>|null $queueSummary */
 		$queueSummary = \is_array($poll['queue_summary'] ?? null) ? $poll['queue_summary'] : null;
+
+		$settings = \is_array($poll['orchestrator_settings'] ?? null) ? $poll['orchestrator_settings'] : [];
+
+		// Local overrides win, otherwise the monitor's orchestrator_settings decide.
+		$claudeBinary = $this->claudeBinary
+			?? (\is_string($settings['claude_binary'] ?? null) && $settings['claude_binary'] !== '' ? $settings['claude_binary'] : 'claude');
+		$turnTimeoutSeconds = $this->turnTimeoutSeconds
+			?? (\is_numeric($settings['turn_timeout_seconds'] ?? null) ? (int) $settings['turn_timeout_seconds'] : 900);
+
+		$claudeError = $this->checkClaudeBinary($claudeBinary, $output);
+
+		if ($claudeError !== null) {
+			$output->writeln('<error>' . $claudeError . '</error>');
+
+			return self::FAILURE;
+		}
 
 		$reporter->runHeader($this->workerId, $this->maxConcurrent, $repoPath);
 
@@ -110,16 +135,18 @@ final class OrchestratorRunCommand extends Command
 		$leasedTasks = $poll['tasks'] ?? [];
 		$reporter->afterPoll($leasedTasks, $queueSummary);
 
-		$settings = \is_array($poll['orchestrator_settings'] ?? null) ? $poll['orchestrator_settings'] : [];
-		$tmux = new TmuxClaudeDriver($this->claudeBinary);
+		$tmux = new TmuxClaudeDriver($claudeBinary);
 		$parser = new JsonMilestoneParser();
 		$turnStates = new TurnStateStore();
 		$bundles = new ContextBundles();
+		$policyWriter = new PolicySettingsWriter();
+		$outbox = new Outbox();
 		$coordinator = new TurnCoordinator(
 			$this->monitor,
 			$tmux,
 			new PathGuard(),
 			$turnStates,
+			$outbox,
 		);
 		$collector = new TurnCollector(
 			$this->monitor,
@@ -127,7 +154,7 @@ final class OrchestratorRunCommand extends Command
 			$parser,
 			$coordinator,
 			$turnStates,
-			$this->turnTimeoutSeconds,
+			$turnTimeoutSeconds,
 		);
 
 		$worktreesRemoved = 0;
@@ -136,6 +163,11 @@ final class OrchestratorRunCommand extends Command
 		$messagesDelivered = 0;
 
 		try {
+			// Replay finalizations that a previous run could not deliver (monitor outage).
+			if ($repoPath !== '') {
+				$outbox->flush(\rtrim($repoPath, '/') . '/' . Outbox::OUTBOX_RELATIVE_PATH, $this->monitor, $output);
+			}
+
 			$toCleanup = $this->monitor->listSessionsNeedingWorktreeCleanup();
 			$runningSessions = $this->monitor->listRunningSessions();
 			$pendingMessageSessions = $this->monitor->listSessionsWithPendingMessages();
@@ -157,7 +189,26 @@ final class OrchestratorRunCommand extends Command
 			$suspender = new SessionSuspender($this->monitor, $tmux, $turnStates);
 			$sessionsSuspended = $suspender->suspendIdleRunning($runningSessions, $settings, $output, $finalizedSessionIds);
 
-			$deliverer = new PendingMessageDeliverer($this->monitor, $tmux, $coordinator, $turnStates, $bundles);
+			// Reap orphan panes before the deliverer resumes suspended sessions —
+			// anything alive now that is neither running nor awaiting a message is a leak.
+			if ($projectId > 0) {
+				$whitelist = [];
+
+				foreach ([...$runningSessions, ...$pendingMessageSessions] as $aliveSession) {
+					$name = (string) ($aliveSession['tmux_session_name'] ?? '');
+
+					if ($name === '') {
+						continue;
+					}
+
+					$whitelist[] = $name;
+				}
+
+				$reaper = new TmuxReaper($tmux);
+				$reaper->reap(\array_values(\array_unique($whitelist)), $projectId, $output);
+			}
+
+			$deliverer = new PendingMessageDeliverer($this->monitor, $tmux, $coordinator, $turnStates, $bundles, $policyWriter);
 			$messagesDelivered = $deliverer->deliverAll($pendingMessageSessions, $poll, $output);
 
 			$reporter->maintenanceDone($worktreesRemoved, $sessionsSuspended, $messagesDelivered, $turnsFinalized);
@@ -180,6 +231,7 @@ final class OrchestratorRunCommand extends Command
 			$coordinator,
 			$turnStates,
 			$bundles,
+			$policyWriter,
 			$reporter,
 		);
 
@@ -206,12 +258,13 @@ final class OrchestratorRunCommand extends Command
 	}
 
 	/**
-	 * Verify required binaries before doing anything. Uses a login shell so PATH
-	 * matches what the tmux panes will see (claude is often installed via nvm).
+	 * Verify host binaries before doing anything. Uses a login shell so PATH
+	 * matches what the tmux panes will see. The claude binary is checked later,
+	 * after the poll — its name comes from orchestrator_settings.
 	 */
 	private function preflightCheck(): ?string
 	{
-		foreach (['git', 'tmux', $this->claudeBinary] as $binary) {
+		foreach (['git', 'tmux'] as $binary) {
 			$process = new Process(['bash', '-lc', 'command -v ' . \escapeshellarg($binary)]);
 			$process->setTimeout(15);
 			$process->run();
@@ -219,6 +272,41 @@ final class OrchestratorRunCommand extends Command
 			if (!$process->isSuccessful()) {
 				return \sprintf('Required binary not found in PATH: %s', $binary);
 			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Resolve the claude binary (name comes from orchestrator_settings) and warn
+	 * when the version predates --settings/hooks support.
+	 */
+	private function checkClaudeBinary(string $claudeBinary, OutputInterface $output): ?string
+	{
+		$process = new Process(['bash', '-lc', 'command -v ' . \escapeshellarg($claudeBinary)]);
+		$process->setTimeout(15);
+		$process->run();
+
+		if (!$process->isSuccessful()) {
+			return \sprintf('Required binary not found in PATH: %s', $claudeBinary);
+		}
+
+		$version = new Process(['bash', '-lc', \escapeshellarg($claudeBinary) . ' --version']);
+		$version->setTimeout(15);
+		$version->run();
+
+		if (!$version->isSuccessful()
+			|| \preg_match('/(\d+)\.(\d+)\.(\d+)/', $version->getOutput(), $matches) !== 1) {
+			$output->writeln('<comment>Could not determine claude version — policy enforcement assumes --settings/hooks support.</comment>');
+
+			return null;
+		}
+
+		if ((int) $matches[1] < 2) {
+			$output->writeln(\sprintf(
+				'<comment>claude %s is older than the tested 2.x line — verify that --settings files with hooks are supported.</comment>',
+				$matches[0],
+			));
 		}
 
 		return null;
