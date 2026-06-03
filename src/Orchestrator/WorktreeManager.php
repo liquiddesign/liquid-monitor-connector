@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace LiquidMonitorConnector\Orchestrator;
 
+use Nette\Utils\Strings;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
@@ -38,6 +39,21 @@ final class WorktreeManager
 		]);
 
 		return $worktreePath;
+	}
+
+	public function currentBranch(string $repoPath): ?string
+	{
+		$process = new Process(['git', '-C', \rtrim($repoPath, '/'), 'rev-parse', '--abbrev-ref', 'HEAD']);
+		$process->setTimeout(15);
+		$process->run();
+
+		if (!$process->isSuccessful()) {
+			return null;
+		}
+
+		$branch = Strings::trim($process->getOutput());
+
+		return $branch === '' ? null : $branch;
 	}
 
 	public function removeWorktree(string $repoPath, int $taskId): void

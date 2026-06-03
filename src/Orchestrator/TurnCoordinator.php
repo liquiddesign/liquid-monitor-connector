@@ -4,59 +4,45 @@ declare(strict_types=1);
 
 namespace LiquidMonitorConnector\Orchestrator;
 
+use Nette\Utils\FileSystem;
 use Nette\Utils\Strings;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Process\Process;
 
 final class TurnCoordinator
 {
+	/** Where the agent writes its milestone, relative to the worktree root. */
+	public const string MILESTONE_RELATIVE_PATH = '.orchestrator/milestone.json';
+
 	public function __construct(
 		private readonly MonitorClient $monitor,
 		private readonly TmuxClaudeDriver $tmux,
-		private readonly JsonMilestoneParser $parser,
 		private readonly PathGuard $pathGuard,
-		private readonly int $turnTimeoutSeconds = 900,
-		private readonly int $idlePollSeconds = 3,
+		private readonly TurnStateStore $turnStates,
 	) {
 	}
 
 	/**
-	 * @return array<string, mixed>
+	 * Remove stale milestone + turn-state files before submitting a prompt, so a
+	 * later collect pass cannot pick up the previous turn's result (worktrees are reused).
 	 */
-	public function waitForMilestone(string $tmuxName, OutputInterface $output): array
+	public function prepareForTurn(string $worktreePath): void
 	{
-		$deadline = \time() + $this->turnTimeoutSeconds;
-		$lastPane = '';
-		$stableSince = null;
-		$jsonRetries = 0;
+		$this->turnStates->clear($worktreePath);
+		$file = $this->milestoneFilePath($worktreePath);
 
-		while (\time() < $deadline) {
-			$pane = $this->tmux->capturePane($tmuxName);
-			$text = $this->parser->collectTextFromOutput($pane);
-			$milestone = $this->parser->extract($text);
-
-			if ($milestone !== null) {
-				return $milestone;
-			}
-
-			if ($pane === $lastPane) {
-				$stableSince ??= \time();
-
-				if (\time() - $stableSince >= $this->idlePollSeconds * 4 && $jsonRetries < 2) {
-					$output->writeln('<comment>Pane idle without JSON milestone — retrying prompt.</comment>');
-					$this->tmux->sendKeys($tmuxName, 'Reply with ONLY a ```json``` block as specified.');
-					$stableSince = null;
-					$jsonRetries++;
-				}
-			} else {
-				$stableSince = null;
-				$lastPane = $pane;
-			}
-
-			\sleep($this->idlePollSeconds);
+		if ($file === null || !\is_file($file)) {
+			return;
 		}
 
-		throw new \RuntimeException('Timed out waiting for agent JSON milestone.');
+		FileSystem::delete($file);
+	}
+
+	public function milestoneFilePath(string $worktreePath): ?string
+	{
+		$worktreePath = \rtrim($worktreePath, '/');
+
+		return $worktreePath === '' ? null : $worktreePath . '/' . self::MILESTONE_RELATIVE_PATH;
 	}
 
 	/**
@@ -161,6 +147,10 @@ final class TurnCoordinator
 			'suspended_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
 			'last_activity_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
 		]);
+
+		if ($worktreePath !== '') {
+			$this->prepareForTurn($worktreePath);
+		}
 
 		$output->writeln(\sprintf('<info>Task #%d: result posted (%s), session suspended.</info>', $taskId, $category));
 	}

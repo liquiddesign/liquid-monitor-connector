@@ -13,6 +13,9 @@ final class TaskRunner
 		private readonly WorktreeManager $worktrees,
 		private readonly TmuxClaudeDriver $tmux,
 		private readonly TurnCoordinator $coordinator,
+		private readonly TurnStateStore $turnStates,
+		private readonly ContextBundles $bundles,
+		private readonly ?OrchestratorRunReporter $reporter = null,
 	) {
 	}
 
@@ -36,8 +39,29 @@ final class TaskRunner
 		}
 
 		$defaultBranch = (string) ($pollMeta['orchestrator_default_branch'] ?? 'prod');
-		$worktreePath = $this->worktrees->ensureWorktree($repoPath, $defaultBranch, $taskId);
-		$branchName = 'autonomy/task-' . $taskId;
+		$settings = \is_array($pollMeta['orchestrator_settings'] ?? null) ? $pollMeta['orchestrator_settings'] : [];
+		$useWorktrees = (bool) ($settings['use_worktrees'] ?? false);
+
+		if ($useWorktrees) {
+			$worktreePath = $this->worktrees->ensureWorktree($repoPath, $defaultBranch, $taskId);
+			$branchName = 'autonomy/task-' . $taskId;
+		} else {
+			$worktreePath = \rtrim($repoPath, '/');
+
+			if ($this->turnStates->read($worktreePath) !== null) {
+				$output->writeln(\sprintf(
+					'<comment>Task #%d: repo %s is busy with an open turn — returning task to queue.</comment>',
+					$taskId,
+					$worktreePath,
+				));
+				$this->monitor->patchTask($taskId, ['status' => 'pending']);
+
+				return;
+			}
+
+			$branchName = $this->worktrees->currentBranch($worktreePath) ?? $defaultBranch;
+		}
+
 		$tmuxName = 'orch-' . $taskId;
 		$claudeSessionId = $this->uuid4();
 
@@ -67,7 +91,7 @@ final class TaskRunner
 		]);
 
 		$deliveryUuid = $this->uuid4();
-		$brief = $this->buildBrief($task, $contextSources, $deliveryUuid);
+		$brief = $this->buildBrief($task, $contextSources, $deliveryUuid, $useWorktrees, $worktreePath, $branchName);
 		$messageResponse = $this->monitor->createMessage([
 			'agent_session_id' => $sessionId,
 			'delivery_uuid' => $deliveryUuid,
@@ -79,10 +103,24 @@ final class TaskRunner
 		$messageData = $messageResponse['data'] ?? $messageResponse;
 		$messageId = (int) ($messageData['id'] ?? 0);
 
-		$output->writeln(\sprintf('<info>Task #%d: starting tmux session %s</info>', $taskId, $tmuxName));
+		if ($this->reporter !== null) {
+			$this->reporter->taskStarting($task, $tmuxName, $worktreePath);
+		} else {
+			$output->writeln(\sprintf('<info>Task #%d: starting tmux session %s</info>', $taskId, $tmuxName));
+		}
 
-		$this->tmux->startNew($tmuxName, $worktreePath, $claudeSessionId);
-		\sleep(5);
+		$merged = $this->bundles->merge($contextSources);
+
+		$this->coordinator->prepareForTurn($worktreePath);
+		$this->tmux->startNew(
+			$tmuxName,
+			$worktreePath,
+			$claudeSessionId,
+			$merged['env'],
+			$merged['add_dirs'],
+			$merged['allowed_tools'],
+		);
+		\sleep(8);
 
 		$rename = \sprintf(
 			'/rename %s — %s',
@@ -90,27 +128,41 @@ final class TaskRunner
 			(string) ($task['external_title'] ?? 'task'),
 		);
 		$this->tmux->sendKeys($tmuxName, $rename);
-		\sleep(2);
+		\sleep(1);
+		$output->writeln('<comment>Submitting brief to Claude (paste + Enter)…</comment>');
 		$this->tmux->sendKeys($tmuxName, $brief);
-
-		$this->monitor->patchMessage($messageId, ['delivery_status' => 'delivering']);
-
-		$milestone = $this->coordinator->waitForMilestone($tmuxName, $output);
 
 		$this->monitor->patchMessage($messageId, [
 			'delivery_status' => 'delivered',
 			'delivered_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
 		]);
 
-		$this->coordinator->finalizeTurn($session, $task, $pollMeta, $milestone, 1, $output);
+		$this->turnStates->write($worktreePath, [
+			'task_id' => $taskId,
+			'session_id' => $sessionId,
+			'turn_number' => 1,
+			'phase' => 'assess',
+			'message_id' => $messageId,
+			'submitted_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
+			'pane_sha1' => \sha1($this->tmux->capturePane($tmuxName)),
+			'nudges' => 0,
+		]);
+
+		$output->writeln('<comment>Brief submitted — milestone will be collected by subsequent runs.</comment>');
 	}
 
 	/**
 	 * @param array<string, mixed> $task
 	 * @param array<int, array<string, mixed>> $contextSources
 	 */
-	private function buildBrief(array $task, array $contextSources, string $deliveryUuid): string
-	{
+	private function buildBrief(
+		array $task,
+		array $contextSources,
+		string $deliveryUuid,
+		bool $useWorktrees,
+		string $workPath,
+		string $branchName,
+	): string {
 		$skillBlocks = [];
 
 		foreach ($contextSources as $source) {
@@ -125,9 +177,16 @@ final class TaskRunner
 		$title = (string) ($task['external_title'] ?? '');
 		$url = (string) ($task['external_url'] ?? '');
 		$source = (string) ($task['source'] ?? 'unknown');
+		$milestonePath = TurnCoordinator::MILESTONE_RELATIVE_PATH;
+
+		$workContext = $useWorktrees
+			? "You are an autonomous programming agent working in a dedicated git worktree on branch {$branchName}."
+			: "You are an autonomous programming agent working directly in the project repository at {$workPath} "
+				. "on branch {$branchName}. The repository may contain uncommitted local changes of a human developer — "
+				. 'do NOT switch branches, do NOT commit, stash, or revert anything unless the task explicitly requires a code change.';
 
 		$body = <<<MARKDOWN
-You are an autonomous programming agent working in a git worktree on branch autonomy/task-{$task['id']}.
+{$workContext}
 
 Task {$ticket} from "{$source}":
 Title: {$title}
@@ -135,7 +194,11 @@ URL: {$url}
 {$skills}
 Phases in this turn: assess the assignment, then either answer, implement a code change, or hand off.
 
-When finished, emit a SINGLE ```json fenced block with:
+When finished, write your milestone to the file `{$milestonePath}` in the worktree root
+(create the directory if needed). The file must contain a single RAW JSON object — no markdown
+fences, no surrounding prose. Never commit this file. After writing it, stop and wait.
+
+The JSON object must have these keys:
   - phase: "assess" | "work" | "review_prep"
   - category: "answer" | "needs_work" | "implemented" | "handoff" | "unclear" | "error"
   - confidence: "low" | "medium" | "high"

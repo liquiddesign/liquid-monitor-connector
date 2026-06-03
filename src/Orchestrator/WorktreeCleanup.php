@@ -18,8 +18,10 @@ final class WorktreeCleanup
 	/**
 	 * @param array<int, array<string, mixed>> $sessions
 	 */
-	public function cleanupArchived(array $sessions, OutputInterface $output): void
+	public function cleanupArchived(array $sessions, OutputInterface $output): int
 	{
+		$removed = 0;
+
 		foreach ($sessions as $session) {
 			$sessionId = (int) ($session['id'] ?? 0);
 			$taskId = (int) ($session['triage_task_id'] ?? 0);
@@ -30,6 +32,16 @@ final class WorktreeCleanup
 			}
 
 			try {
+				// Repo-mode sessions (use_worktrees=false) work directly in the main repo — never remove it.
+				if (\rtrim($worktreePath, '/') === \rtrim($this->repoPath, '/')) {
+					$this->monitor->patchSession($sessionId, [
+						'worktree_removed_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
+					]);
+					$output->writeln(\sprintf('<info>Task #%d ran directly in the repo — nothing to remove.</info>', $taskId));
+
+					continue;
+				}
+
 				$this->worktrees->removeWorktree($this->repoPath, $taskId);
 				$this->monitor->patchSession($sessionId, [
 					'worktree_path' => null,
@@ -37,6 +49,7 @@ final class WorktreeCleanup
 					'worktree_removed_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
 				]);
 				$output->writeln(\sprintf('<info>Removed worktree for task #%d</info>', $taskId));
+				$removed++;
 			} catch (\Throwable $e) {
 				$output->writeln(\sprintf(
 					'<error>Worktree cleanup for task #%d failed: %s</error>',
@@ -45,5 +58,7 @@ final class WorktreeCleanup
 				));
 			}
 		}
+
+		return $removed;
 	}
 }

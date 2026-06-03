@@ -8,26 +8,37 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 final class SessionSuspender
 {
-	public function __construct(private readonly MonitorClient $monitor, private readonly TmuxClaudeDriver $tmux,)
-	{
+	public function __construct(
+		private readonly MonitorClient $monitor,
+		private readonly TmuxClaudeDriver $tmux,
+		private readonly TurnStateStore $turnStates,
+	) {
 	}
 
 	/**
 	 * @param array<int, array<string, mixed>> $sessions
 	 * @param array<string, mixed> $orchestratorSettings
 	 */
-	public function suspendIdleRunning(array $sessions, array $orchestratorSettings, OutputInterface $output): void
+	public function suspendIdleRunning(array $sessions, array $orchestratorSettings, OutputInterface $output): int
 	{
 		$idleMinutes = (int) ($orchestratorSettings['sleep_after_idle_minutes'] ?? 15);
 
 		if ($idleMinutes <= 0) {
-			return;
+			return 0;
 		}
 
 		$cutoff = (new \DateTimeImmutable())->modify('-' . $idleMinutes . ' minutes');
+		$suspended = 0;
 
 		foreach ($sessions as $session) {
 			if (($session['state'] ?? '') !== 'running') {
+				continue;
+			}
+
+			$worktree = (string) ($session['worktree_path'] ?? $session['claude_session_cwd'] ?? '');
+
+			// Mid-turn sessions are owned by TurnCollector (nudge/timeout), never idle-suspended.
+			if ($worktree !== '' && $this->turnStates->read($worktree) !== null) {
 				continue;
 			}
 
@@ -56,6 +67,9 @@ final class SessionSuspender
 			]);
 
 			$output->writeln(\sprintf('<info>Suspended idle session #%d (%s)</info>', $sessionId, $tmuxName));
+			$suspended++;
 		}
+
+		return $suspended;
 	}
 }
