@@ -28,11 +28,11 @@ final class TurnCollector
 	/**
 	 * @param array<int, array<string, mixed>> $sessions
 	 * @param array<string, mixed> $pollMeta
-	 * @return int Number of turns finalized (successfully or as failure).
+	 * @return array<int, int> IDs of sessions whose turn was finalized (successfully or as failure).
 	 */
-	public function collectAll(array $sessions, array $pollMeta, OutputInterface $output): int
+	public function collectAll(array $sessions, array $pollMeta, OutputInterface $output): array
 	{
-		$finalized = 0;
+		$finalized = [];
 
 		foreach ($sessions as $session) {
 			if (($session['state'] ?? '') !== 'running') {
@@ -61,7 +61,7 @@ final class TurnCollector
 				continue;
 			}
 
-			$finalized++;
+			$finalized[] = (int) ($session['id'] ?? 0);
 		}
 
 		return $finalized;

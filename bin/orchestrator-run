@@ -32,10 +32,29 @@ if (!$autoloadFound) {
 	exit(1);
 }
 
-$dotenvFile = \getcwd() !== false ? \getcwd() . '/.env' : null;
+$rawArgsForEnv = $_SERVER['argv'] ?? [];
+\assert(\is_array($rawArgsForEnv));
+$envFile = null;
 
-if ($dotenvFile !== null && \is_file($dotenvFile)) {
-	(new \Symfony\Component\Dotenv\Dotenv())->load($dotenvFile);
+foreach ($rawArgsForEnv as $arg) {
+	if (\is_string($arg) && \str_starts_with($arg, '--env-file=')) {
+		$envFile = \substr($arg, \strlen('--env-file='));
+	}
+}
+
+if ($envFile !== null) {
+	if (!\is_file($envFile)) {
+		\fwrite(\STDERR, "orchestrator-run: env file not found: {$envFile}\n");
+		exit(1);
+	}
+
+	(new \Symfony\Component\Dotenv\Dotenv())->load($envFile);
+} else {
+	$dotenvFile = \getcwd() !== false ? \getcwd() . '/.env' : null;
+
+	if ($dotenvFile !== null && \is_file($dotenvFile)) {
+		(new \Symfony\Component\Dotenv\Dotenv())->load($dotenvFile);
+	}
 }
 
 $envOr = static function (string $name, string $default = ''): string {
@@ -80,6 +99,11 @@ foreach ($rawArgs as $arg) {
 		} else {
 			$name = \substr($arg, 2);
 			$value = null;
+		}
+
+		if ($name === 'env-file') {
+			// Already processed before config was read.
+			continue;
 		}
 
 		if (\array_key_exists($name, $opts)) {

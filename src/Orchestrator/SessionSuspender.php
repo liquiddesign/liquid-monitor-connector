@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace LiquidMonitorConnector\Orchestrator;
 
+use Nette\Utils\Arrays;
 use Symfony\Component\Console\Output\OutputInterface;
 
 final class SessionSuspender
@@ -18,9 +19,14 @@ final class SessionSuspender
 	/**
 	 * @param array<int, array<string, mixed>> $sessions
 	 * @param array<string, mixed> $orchestratorSettings
+	 * @param array<int, int> $skipSessionIds Sessions already handled this run (e.g. just finalized).
 	 */
-	public function suspendIdleRunning(array $sessions, array $orchestratorSettings, OutputInterface $output): int
-	{
+	public function suspendIdleRunning(
+		array $sessions,
+		array $orchestratorSettings,
+		OutputInterface $output,
+		array $skipSessionIds = [],
+	): int {
 		$idleMinutes = (int) ($orchestratorSettings['sleep_after_idle_minutes'] ?? 15);
 
 		if ($idleMinutes <= 0) {
@@ -32,6 +38,10 @@ final class SessionSuspender
 
 		foreach ($sessions as $session) {
 			if (($session['state'] ?? '') !== 'running') {
+				continue;
+			}
+
+			if (Arrays::contains($skipSessionIds, (int) ($session['id'] ?? 0))) {
 				continue;
 			}
 

@@ -11,6 +11,7 @@ use LiquidMonitorConnector\Orchestrator\MonitorClient;
 use LiquidMonitorConnector\Orchestrator\OrchestratorRunReporter;
 use LiquidMonitorConnector\Orchestrator\PathGuard;
 use LiquidMonitorConnector\Orchestrator\PendingMessageDeliverer;
+use LiquidMonitorConnector\Orchestrator\RunLock;
 use LiquidMonitorConnector\Orchestrator\SessionSuspender;
 use LiquidMonitorConnector\Orchestrator\TaskRunner;
 use LiquidMonitorConnector\Orchestrator\TmuxClaudeDriver;
@@ -23,6 +24,7 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Process\Process;
 use Throwable;
 
 #[AsCommand(name: 'orchestrator:run', description: 'Poll Liquid Monitor orchestrator API, run tasks in tmux + Claude REPL.')]
@@ -42,6 +44,31 @@ final class OrchestratorRunCommand extends Command
 	{
 		unset($input);
 
+		$preflightError = $this->preflightCheck();
+
+		if ($preflightError !== null) {
+			$output->writeln('<error>' . $preflightError . '</error>');
+
+			return self::FAILURE;
+		}
+
+		$lock = new RunLock($this->workerId);
+
+		if (!$lock->acquire()) {
+			$output->writeln('<info>Another orchestrator run is still active — skipping.</info>');
+
+			return self::SUCCESS;
+		}
+
+		try {
+			return $this->doRun($output);
+		} finally {
+			$lock->release();
+		}
+	}
+
+	private function doRun(OutputInterface $output): int
+	{
 		$reporter = new OrchestratorRunReporter($output);
 
 		try {
@@ -124,10 +151,11 @@ final class OrchestratorRunCommand extends Command
 				$worktreesRemoved = $cleanup->cleanupArchived($toCleanup, $output);
 			}
 
-			$turnsFinalized = $collector->collectAll($runningSessions, $poll, $output);
+			$finalizedSessionIds = $collector->collectAll($runningSessions, $poll, $output);
+			$turnsFinalized = \count($finalizedSessionIds);
 
 			$suspender = new SessionSuspender($this->monitor, $tmux, $turnStates);
-			$sessionsSuspended = $suspender->suspendIdleRunning($runningSessions, $settings, $output);
+			$sessionsSuspended = $suspender->suspendIdleRunning($runningSessions, $settings, $output, $finalizedSessionIds);
 
 			$deliverer = new PendingMessageDeliverer($this->monitor, $tmux, $coordinator, $turnStates, $bundles);
 			$messagesDelivered = $deliverer->deliverAll($pendingMessageSessions, $poll, $output);
@@ -175,5 +203,24 @@ final class OrchestratorRunCommand extends Command
 		$reporter->runFinished(\count($leasedTasks), $failures);
 
 		return $failures === 0 ? self::SUCCESS : self::FAILURE;
+	}
+
+	/**
+	 * Verify required binaries before doing anything. Uses a login shell so PATH
+	 * matches what the tmux panes will see (claude is often installed via nvm).
+	 */
+	private function preflightCheck(): ?string
+	{
+		foreach (['git', 'tmux', $this->claudeBinary] as $binary) {
+			$process = new Process(['bash', '-lc', 'command -v ' . \escapeshellarg($binary)]);
+			$process->setTimeout(15);
+			$process->run();
+
+			if (!$process->isSuccessful()) {
+				return \sprintf('Required binary not found in PATH: %s', $binary);
+			}
+		}
+
+		return null;
 	}
 }
