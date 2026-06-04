@@ -45,4 +45,12 @@ Assert::same(
 	$merged['allowed_tools'],
 );
 
+// With a monitor URL + API key, both land in every agent env regardless of sources.
+$withAuth = new ContextBundles('https://monitor.test/', 'trk_secret');
+$mergedAuth = $withAuth->merge([]);
+Assert::same(
+	['MONITOR_API_URL' => 'https://monitor.test', 'MONITOR_TRIAGE_API_KEY' => 'trk_secret'],
+	$mergedAuth['env'],
+);
+
 echo "\nOK " . __FILE__ . "\n";

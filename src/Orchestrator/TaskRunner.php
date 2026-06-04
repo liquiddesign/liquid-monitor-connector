@@ -16,6 +16,7 @@ final class TaskRunner
 		private readonly TurnStateStore $turnStates,
 		private readonly ContextBundles $bundles,
 		private readonly PolicySettingsWriter $policyWriter,
+		private readonly RepoSynchronizer $repoSync,
 		private readonly ?OrchestratorRunReporter $reporter = null,
 	) {
 	}
@@ -44,6 +45,8 @@ final class TaskRunner
 		$useWorktrees = (bool) ($settings['use_worktrees'] ?? false);
 
 		if ($useWorktrees) {
+			// Worktrees branch off origin/* — refresh remote refs so the new branch is current.
+			$this->repoSync->fetch($repoPath);
 			$worktreePath = $this->worktrees->ensureWorktree($repoPath, $defaultBranch, $taskId);
 			$branchName = 'autonomy/task-' . $taskId;
 		} else {
@@ -52,6 +55,29 @@ final class TaskRunner
 			if ($this->turnStates->read($worktreePath) !== null) {
 				$output->writeln(\sprintf(
 					'<comment>Task #%d: repo %s is busy with an open turn — returning task to queue.</comment>',
+					$taskId,
+					$worktreePath,
+				));
+				$this->monitor->patchTask($taskId, ['status' => 'pending']);
+
+				return;
+			}
+
+			// The orchestrator owns git: never start an agent on a dirty tree or stale code.
+			if (!$this->repoSync->isClean($worktreePath)) {
+				$output->writeln(\sprintf(
+					'<comment>Task #%d: repo %s has uncommitted changes (outside .orchestrator/) — returning task to queue.</comment>',
+					$taskId,
+					$worktreePath,
+				));
+				$this->monitor->patchTask($taskId, ['status' => 'pending']);
+
+				return;
+			}
+
+			if (!$this->repoSync->pullFastForward($worktreePath)) {
+				$output->writeln(\sprintf(
+					'<comment>Task #%d: git pull --ff-only failed for %s (divergence / no upstream / network) — returning task to queue.</comment>',
 					$taskId,
 					$worktreePath,
 				));
@@ -93,7 +119,7 @@ final class TaskRunner
 		]);
 
 		$deliveryUuid = Uuid::v4();
-		$brief = $this->buildBrief($task, $contextSources, $deliveryUuid, $useWorktrees, $worktreePath, $branchName);
+		$brief = $this->buildBrief($task, $deliveryUuid, $useWorktrees, $worktreePath, $branchName);
 		$messageResponse = $this->monitor->createMessage([
 			'agent_session_id' => $sessionId,
 			'delivery_uuid' => $deliveryUuid,
@@ -155,27 +181,17 @@ final class TaskRunner
 	}
 
 	/**
+	 * Thin bootstrap brief. The agent learns what it can do from the capabilities
+	 * manifest it pulls itself (pull model) — we no longer splice per-source skill_md.
 	 * @param array<string, mixed> $task
-	 * @param array<int, array<string, mixed>> $contextSources
 	 */
 	private function buildBrief(
 		array $task,
-		array $contextSources,
 		string $deliveryUuid,
 		bool $useWorktrees,
 		string $workPath,
 		string $branchName,
 	): string {
-		$skillBlocks = [];
-
-		foreach ($contextSources as $source) {
-			if (\is_string($source['skill_md'] ?? null) && $source['skill_md'] !== '') {
-				$type = (string) ($source['type'] ?? 'context');
-				$skillBlocks[] = "## skill: {$type}\n\n" . $source['skill_md'];
-			}
-		}
-
-		$skills = $skillBlocks === [] ? '' : "\n\n# Skills\n\n" . \implode("\n\n", $skillBlocks) . "\n";
 		$ticket = (string) ($task['ticket_number'] ?? '#' . ($task['id'] ?? '?'));
 		$title = (string) ($task['external_title'] ?? '');
 		$url = (string) ($task['external_url'] ?? '');
@@ -191,10 +207,22 @@ final class TaskRunner
 		$body = <<<MARKDOWN
 {$workContext}
 
+You are running autonomously under the Liquid Monitor orchestrator. Before anything else, fetch your
+operating manifest and follow it:
+
+    curl -s "\$MONITOR_API_URL/api/orchestrator/capabilities" -H "X-Api-Key: \$MONITOR_TRIAGE_API_KEY"
+
+The manifest declares your mode, the rules you must obey, and every reference resource available to you
+(production errors, logs, database, cron job-runs, task detail, past results) together with the exact
+method and URL to call. Pull ALL reference data through the monitor API only — never read production
+logs, databases or external task systems (Freelo, …) directly. You edit code locally in this working
+copy; the orchestrator owns every git operation. Authenticate each monitor call with the header
+`X-Api-Key: \$MONITOR_TRIAGE_API_KEY` against the base URL `\$MONITOR_API_URL`.
+
 Task {$ticket} from "{$source}":
 Title: {$title}
 URL: {$url}
-{$skills}
+
 Phases in this turn: assess the assignment, then either answer, implement a code change, or hand off.
 
 When finished, write your milestone to the file `{$milestonePath}` in the worktree root
