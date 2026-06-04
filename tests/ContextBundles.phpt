@@ -27,7 +27,7 @@ $merged = $bundles->merge([
 		'type' => 'errors_api',
 		'env' => ['MONITOR_API_URL' => 'https://monitor.test'],
 		'add_dirs' => ['/var/log/app'],
-		'allowed_tools_patterns' => ['Bash(curl * https://monitor.test/api/triage/errors*)', 'Read'],
+		'allowed_tools_patterns' => ['Bash(curl * https://monitor.test/api/context/errors*)', 'Read'],
 	],
 	[
 		'type' => 'broken',
@@ -41,7 +41,7 @@ Assert::same(
 );
 Assert::same(['/var/log/app'], $merged['add_dirs']);
 Assert::same(
-	['Read', 'Grep', 'Bash(curl * https://monitor.test/api/triage/errors*)'],
+	['Read', 'Grep', 'Bash(curl * https://monitor.test/api/context/errors*)'],
 	$merged['allowed_tools'],
 );
 

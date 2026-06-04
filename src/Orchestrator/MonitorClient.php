@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LiquidMonitorConnector\Orchestrator;
 
 use GuzzleHttp\Client;
+use LiquidMonitorConnector\Version;
 use Nette\Utils\Json;
 
 final class MonitorClient
@@ -21,6 +22,7 @@ final class MonitorClient
 			'headers' => [
 				'X-Api-Key' => $this->apiKey,
 				'Accept' => 'application/json',
+				Version::HEADER_NAME => Version::CURRENT,
 			],
 			'timeout' => $timeoutSeconds,
 		]);
@@ -208,7 +210,7 @@ final class MonitorClient
 	 */
 	public function postResult(int $taskId, array $payload): void
 	{
-		$this->client->post('api/triage/results', [
+		$this->client->post('api/context/results', [
 			'json' => \array_merge(['triage_task_id' => $taskId], $payload),
 		]);
 	}
@@ -218,7 +220,7 @@ final class MonitorClient
 	 */
 	public function patchTask(int $taskId, array $patch): void
 	{
-		$this->client->patch('api/triage/tasks/' . $taskId, ['json' => $patch]);
+		$this->client->patch('api/context/tasks/' . $taskId, ['json' => $patch]);
 	}
 
 	/**

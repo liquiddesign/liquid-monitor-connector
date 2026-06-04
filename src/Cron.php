@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LiquidMonitorConnector;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ClientException;
 use LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException;
 use LiquidMonitorConnector\Tasks\ExceptionToJsonArray;
 use Nette\Http\Request;
@@ -78,7 +79,11 @@ class Cron
 	{
 		$client = new Client();
 
-		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/is-running", ['http_errors' => false, 'json' => ['apiKey' => $this->getApiKey()]]);
+		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/is-running", [
+			'http_errors' => false,
+			'json' => ['apiKey' => $this->getApiKey()],
+			'headers' => [Version::HEADER_NAME => Version::CURRENT],
+		]);
 
 		return $response->getStatusCode() === 200;
 	}
@@ -93,7 +98,11 @@ class Cron
 	{
 		$client = new Client();
 
-		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/last-job-log", ['http_errors' => false, 'json' => ['apiKey' => $this->getApiKey()]]);
+		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/last-job-log", [
+			'http_errors' => false,
+			'json' => ['apiKey' => $this->getApiKey()],
+			'headers' => [Version::HEADER_NAME => Version::CURRENT],
+		]);
 		$content = $response->getBody()->getContents();
 
 		if ($response->getStatusCode() === 200 && $content) {
@@ -120,7 +129,7 @@ class Cron
 		$response = $client->get(Strings::before($this->getUrl(), 'connector') . 'front/cron/overview', [
 			'http_errors' => false,
 			'json' => ['apiKey' => $this->getApiKey()],
-			'headers' => ['Accept' => 'application/json'],
+			'headers' => ['Accept' => 'application/json', Version::HEADER_NAME => Version::CURRENT],
 			'timeout' => 15,
 		]);
 		$content = $response->getBody()->getContents();
@@ -159,7 +168,11 @@ class Cron
 	{
 		$client = new Client();
 
-		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/joblogs-stats", ['http_errors' => false, 'json' => ['apiKey' => $this->getApiKey()]]);
+		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/joblogs-stats", [
+			'http_errors' => false,
+			'json' => ['apiKey' => $this->getApiKey()],
+			'headers' => [Version::HEADER_NAME => Version::CURRENT],
+		]);
 		$content = $response->getBody()->getContents();
 
 		if ($response->getStatusCode() === 200 && $content) {
@@ -488,6 +501,24 @@ class Cron
 					),
 					ILogger::WARNING,
 				);
+			}
+		} catch (ClientException $e) {
+			if ($e->getResponse()->getStatusCode() === 426) {
+				$supported = $e->getResponse()->getHeaderLine('X-Connector-Supported-Versions');
+				Debugger::log(
+					\sprintf(
+						'Liquid Monitor backend rejected connector version %s as unsupported (426 Upgrade Required). Backend supports: %s. Upgrade liquiddesign/liquid-monitor-connector.',
+						Version::CURRENT,
+						$supported !== '' ? $supported : '(unknown)',
+					),
+					ILogger::WARNING,
+				);
+			} else {
+				Debugger::log($e, 'connector');
+			}
+
+			if ($throw) {
+				throw $e;
 			}
 		} catch (\Exception $e) {
 			Debugger::log($e, 'connector');
