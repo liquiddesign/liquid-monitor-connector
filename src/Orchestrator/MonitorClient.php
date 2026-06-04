@@ -11,16 +11,36 @@ final class MonitorClient
 {
 	private Client $client;
 
+	private readonly string $monitorUrl;
+
 	public function __construct(string $monitorUrl, private readonly string $apiKey, int $timeoutSeconds = 60)
 	{
+		$this->monitorUrl = \rtrim($monitorUrl, '/');
 		$this->client = new Client([
-			'base_uri' => \rtrim($monitorUrl, '/') . '/',
+			'base_uri' => $this->monitorUrl . '/',
 			'headers' => [
 				'X-Api-Key' => $this->apiKey,
 				'Accept' => 'application/json',
 			],
 			'timeout' => $timeoutSeconds,
 		]);
+	}
+
+	/**
+	 * Base monitor URL (no trailing slash). Exposed as MONITOR_API_URL to the agent
+	 * so it can curl the proxy/capabilities endpoints.
+	 */
+	public function monitorUrl(): string
+	{
+		return $this->monitorUrl;
+	}
+
+	/**
+	 * The per-project triage API key the agent presents as X-Api-Key on monitor calls.
+	 */
+	public function apiKey(): string
+	{
+		return $this->apiKey;
 	}
 
 	/**

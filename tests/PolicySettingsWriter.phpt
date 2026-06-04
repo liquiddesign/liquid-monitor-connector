@@ -36,7 +36,11 @@ Assert::false(\in_array('Bash(git checkout:*)', $deny, true)); // not in custom 
 Assert::contains('Edit(.orchestrator/turn-state.json)', $deny);
 Assert::contains('Write(.orchestrator/outbox/**)', $deny);
 Assert::false(\in_array('Edit(.orchestrator/milestone.json)', $deny, true)); // milestone stays writable
-Assert::same(['Bash(composer test:*)', 'Bash(php artisan:*)'], $claudeSettings['permissions']['allow']);
+// Baseline Read/Grep/Glob are always prepended (deduped) to the monitor allow-list.
+Assert::same(
+	['Read', 'Grep', 'Glob', 'Bash(composer test:*)', 'Bash(php artisan:*)'],
+	$claudeSettings['permissions']['allow'],
+);
 
 // Hooks reference the guard binary for PreToolUse and Stop
 Assert::same('Bash|Edit|Write', $claudeSettings['hooks']['PreToolUse'][0]['matcher']);
@@ -63,6 +67,16 @@ Assert::same(PolicySettingsWriter::DEFAULT_DENY_GIT_OPERATIONS, $policy['deny_gi
 $writer->write($cwd, ['deny_git_operations' => ['commit; rm -rf /', 123]], $merged, true);
 $policy = \json_decode((string) \file_get_contents($cwd . '/' . PolicySettingsWriter::POLICY_RELATIVE_PATH), true);
 Assert::same(PolicySettingsWriter::DEFAULT_DENY_GIT_OPERATIONS, $policy['deny_git']);
+
+// Even with an empty monitor allow-list, the agent keeps the read baseline.
+$writer->write($cwd, [], ['env' => [], 'add_dirs' => [], 'allowed_tools' => []], true);
+$claudeSettings = \json_decode((string) \file_get_contents($settingsPath), true);
+Assert::same(['Read', 'Grep', 'Glob'], $claudeSettings['permissions']['allow']);
+
+// A source that already grants a baseline tool does not duplicate it.
+$writer->write($cwd, [], ['env' => [], 'add_dirs' => [], 'allowed_tools' => ['Read', 'Bash(ls:*)']], true);
+$claudeSettings = \json_decode((string) \file_get_contents($settingsPath), true);
+Assert::same(['Read', 'Grep', 'Glob', 'Bash(ls:*)'], $claudeSettings['permissions']['allow']);
 
 // Empty cwd throws
 Assert::exception(

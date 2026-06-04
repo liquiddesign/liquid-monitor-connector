@@ -13,6 +13,7 @@ use LiquidMonitorConnector\Orchestrator\Outbox;
 use LiquidMonitorConnector\Orchestrator\PathGuard;
 use LiquidMonitorConnector\Orchestrator\PendingMessageDeliverer;
 use LiquidMonitorConnector\Orchestrator\PolicySettingsWriter;
+use LiquidMonitorConnector\Orchestrator\RepoSynchronizer;
 use LiquidMonitorConnector\Orchestrator\RunLock;
 use LiquidMonitorConnector\Orchestrator\SessionSuspender;
 use LiquidMonitorConnector\Orchestrator\TaskRunner;
@@ -138,7 +139,7 @@ final class OrchestratorRunCommand extends Command
 		$tmux = new TmuxClaudeDriver($claudeBinary);
 		$parser = new JsonMilestoneParser();
 		$turnStates = new TurnStateStore();
-		$bundles = new ContextBundles();
+		$bundles = new ContextBundles($this->monitor->monitorUrl(), $this->monitor->apiKey());
 		$policyWriter = new PolicySettingsWriter();
 		$outbox = new Outbox();
 		$coordinator = new TurnCoordinator(
@@ -232,6 +233,7 @@ final class OrchestratorRunCommand extends Command
 			$turnStates,
 			$bundles,
 			$policyWriter,
+			new RepoSynchronizer(),
 			$reporter,
 		);
 

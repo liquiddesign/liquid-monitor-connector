@@ -24,6 +24,9 @@ final class PolicySettingsWriter
 	/** Git subcommands denied in repo mode when the project does not override them. */
 	public const array DEFAULT_DENY_GIT_OPERATIONS = ['commit', 'checkout', 'switch', 'reset', 'stash'];
 
+	/** Always-allowed read tools so the agent can explore the repo even with an empty monitor allow-list. */
+	public const array BASELINE_ALLOWED_TOOLS = ['Read', 'Grep', 'Glob'];
+
 	/** Control files the agent must never edit (milestone.json stays writable). */
 	private const array PROTECTED_RELATIVE_PATHS = [
 		'.orchestrator/turn-state.json',
@@ -62,10 +65,12 @@ final class PolicySettingsWriter
 			$deny[] = \sprintf('Write(%s)', $path);
 		}
 
+		$allow = \array_values(\array_unique([...self::BASELINE_ALLOWED_TOOLS, ...$merged['allowed_tools']]));
+
 		$claudeSettings = [
 			'permissions' => [
 				'deny' => $deny,
-				'allow' => \array_values($merged['allowed_tools']),
+				'allow' => $allow,
 			],
 			'hooks' => [
 				'PreToolUse' => [
