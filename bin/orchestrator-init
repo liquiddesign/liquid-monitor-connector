@@ -1,0 +1,217 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+namespace LiquidMonitorConnector\Bin;
+
+use LiquidMonitorConnector\Orchestrator\MonitorClient;
+use Symfony\Component\Process\Process;
+
+/**
+ * One-shot host setup for the orchestrator worker. Run from the repo root:
+ *
+ *   /path/to/liquid-monitor-connector/bin/orchestrator-init
+ *
+ * Writes <repo>/.orchestrator/.env (monitor URL + API key), makes sure
+ * .orchestrator/ is gitignored (the .env carries a secret), checks git/tmux/claude
+ * are on PATH, validates the credentials against the monitor, and prints the cron
+ * line. Capacity / claude binary / turn timeout stay on the monitor — not here.
+ */
+
+$autoloadCandidates = [
+	__DIR__ . '/../vendor/autoload.php',
+	__DIR__ . '/../../../autoload.php',
+];
+
+$autoloadFound = false;
+
+foreach ($autoloadCandidates as $candidate) {
+	if (\is_file($candidate)) {
+		require $candidate;
+		$autoloadFound = true;
+
+		break;
+	}
+}
+
+if (!$autoloadFound) {
+	\fwrite(\STDERR, "orchestrator-init: could not locate vendor/autoload.php\n");
+	exit(1);
+}
+
+$connectorDir = \dirname(__DIR__);
+
+$rawArgs = $_SERVER['argv'] ?? [];
+\assert(\is_array($rawArgs));
+\array_shift($rawArgs);
+
+$opts = [
+	'monitor-url' => null,
+	'api-key' => null,
+	'worker-id' => null,
+	'repo-path' => null,
+];
+$flags = ['force' => false, 'no-validate' => false, 'help' => false];
+
+foreach ($rawArgs as $arg) {
+	if (!\is_string($arg) || !\str_starts_with($arg, '--')) {
+		continue;
+	}
+
+	$body = \substr($arg, 2);
+	$eq = \strpos($body, '=');
+	$name = $eq === false ? $body : \substr($body, 0, $eq);
+	$value = $eq === false ? null : \substr($body, $eq + 1);
+
+	if (\array_key_exists($name, $flags)) {
+		$flags[$name] = true;
+
+		continue;
+	}
+
+	if (\array_key_exists($name, $opts)) {
+		if ($value === null) {
+			\fwrite(\STDERR, "orchestrator-init: --{$name} requires a value\n");
+			exit(1);
+		}
+
+		$opts[$name] = $value;
+	}
+}
+
+if ($flags['help']) {
+	echo <<<TXT
+	orchestrator-init — write .orchestrator/.env for the orchestrator worker.
+
+	Usage (from the repo root):
+	  orchestrator-init [--monitor-url=URL] [--api-key=KEY] [--worker-id=ID]
+	                    [--repo-path=DIR] [--force] [--no-validate]
+
+	  --monitor-url   Liquid Monitor base URL (prompted if omitted on a TTY).
+	  --api-key       Project orchestrator API key trk_… (prompted if omitted).
+	  --worker-id     Lease identity shown in the monitor queue (default: hostname).
+	  --repo-path     Repo root to configure (default: current directory).
+	  --force         Overwrite an existing .orchestrator/.env.
+	  --no-validate   Skip the live credential check against the monitor.
+
+	TXT;
+	exit(0);
+}
+
+$isTty = \stream_isatty(\STDIN);
+
+$prompt = static function (string $label, bool $required, ?string $default = null) use ($isTty): string {
+	if (!$isTty) {
+		return $default ?? '';
+	}
+
+	do {
+		$suffix = $default !== null && $default !== '' ? " [{$default}]" : '';
+		\fwrite(\STDOUT, $label . $suffix . ': ');
+		$line = \fgets(\STDIN);
+		$value = $line === false ? '' : \trim($line);
+
+		if ($value === '' && $default !== null) {
+			$value = $default;
+		}
+	} while ($required && $value === '');
+
+	return $value;
+};
+
+$repoPath = $opts['repo-path'] ?? (\getcwd() !== false ? \getcwd() : '.');
+$repoPath = \rtrim($repoPath, '/');
+
+if (!\is_dir($repoPath . '/.git')) {
+	\fwrite(\STDERR, "orchestrator-init: {$repoPath} is not a git repository (no .git). Pass --repo-path=DIR.\n");
+	exit(1);
+}
+
+$monitorUrl = $opts['monitor-url'] ?? $prompt('Monitor URL (e.g. https://monitor.lqd.cz)', true);
+$apiKey = $opts['api-key'] ?? $prompt('Project orchestrator API key (trk_…)', true);
+$workerId = $opts['worker-id'];
+
+if ($monitorUrl === '' || $apiKey === '') {
+	\fwrite(\STDERR, "orchestrator-init: --monitor-url and --api-key are required.\n");
+	exit(1);
+}
+
+$monitorUrl = \rtrim($monitorUrl, '/');
+
+// Preflight — same binaries the worker needs at runtime.
+foreach (['git', 'tmux', 'claude'] as $binary) {
+	$check = new Process(['bash', '-lc', 'command -v ' . \escapeshellarg($binary)]);
+	$check->setTimeout(15);
+	$check->run();
+
+	if (!$check->isSuccessful()) {
+		\fwrite(\STDOUT, "  ! '{$binary}' not found in PATH — install it before the worker runs.\n");
+	}
+}
+
+// Validate credentials unless skipped.
+if (!$flags['no-validate']) {
+	try {
+		$monitor = new MonitorClient($monitorUrl, $apiKey, 15);
+		$pause = $monitor->globalPause();
+		$paused = ($pause['global_pause'] ?? $pause['paused'] ?? false) === true;
+		\fwrite(\STDOUT, '  ✓ Monitor reachable, credentials accepted' . ($paused ? ' (global pause is ON).' : '.') . "\n");
+	} catch (\Throwable $e) {
+		\fwrite(\STDERR, "orchestrator-init: monitor check failed: {$e->getMessage()}\n");
+		\fwrite(\STDERR, "  Re-run with --no-validate to write the file anyway.\n");
+		exit(1);
+	}
+}
+
+$dir = $repoPath . '/.orchestrator';
+
+if (!\is_dir($dir) && !\mkdir($dir, 0o775, true) && !\is_dir($dir)) {
+	\fwrite(\STDERR, "orchestrator-init: could not create {$dir}\n");
+	exit(1);
+}
+
+$envPath = $dir . '/.env';
+
+if (\is_file($envPath) && !$flags['force']) {
+	\fwrite(\STDERR, "orchestrator-init: {$envPath} already exists — pass --force to overwrite.\n");
+	exit(1);
+}
+
+$lines = [
+	'# Liquid Monitor orchestrator worker — host config (see env.example for all options).',
+	'# Only MONITOR_URL + API_KEY are required; capacity / claude binary / turn timeout',
+	'# come from the monitor (project orchestrator_settings).',
+	'ORCHESTRATOR_MONITOR_URL=' . $monitorUrl,
+	'ORCHESTRATOR_API_KEY=' . $apiKey,
+];
+
+if ($workerId !== null && $workerId !== '') {
+	$lines[] = '';
+	$lines[] = '# Lease identity shown in the monitor queue (defaults to hostname).';
+	$lines[] = 'ORCHESTRATOR_WORKER_ID=' . $workerId;
+}
+
+\file_put_contents($envPath, \implode("\n", $lines) . "\n");
+\chmod($envPath, 0o600);
+\fwrite(\STDOUT, "  ✓ Wrote {$envPath}\n");
+
+// Keep the secret-bearing .env (and all generated control files) out of git via a
+// .gitignore INSIDE .orchestrator/. That dir is already excluded from the worker's
+// clean check, so this never dirties the tree and needs no commit — unlike touching
+// the repo-root .gitignore, which in repo-mode would block the worker until committed.
+$localIgnore = $dir . '/.gitignore';
+
+if (!\is_file($localIgnore)) {
+	\file_put_contents($localIgnore, "# Orchestrator worker config + generated state — never commit.\n*\n");
+	\fwrite(\STDOUT, "  ✓ Wrote {$localIgnore} (ignores the whole dir, incl. the API key)\n");
+}
+
+$runBin = $connectorDir . '/bin/orchestrator-run';
+
+\fwrite(\STDOUT, "\nDone. Run once to verify:\n");
+\fwrite(\STDOUT, "  {$runBin} --env-file={$envPath} -v\n");
+\fwrite(\STDOUT, "\nCron (every minute):\n");
+\fwrite(\STDOUT, "  * * * * * {$runBin} --env-file={$envPath} >> /tmp/orchestrator-run.log 2>&1\n");
+
+exit(0);

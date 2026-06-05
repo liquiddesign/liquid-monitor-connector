@@ -83,7 +83,7 @@ final class TurnCoordinator
 		$verified = true;
 
 		if ($category === 'implemented' || ($milestone['requires_test'] ?? false) === true) {
-			$verified = $this->runComposerTest($worktreePath, $output);
+			$verified = $this->runVerificationTest($worktreePath, $settings, $output);
 		}
 
 		if (!$verified && $category === 'implemented') {
@@ -171,25 +171,40 @@ final class TurnCoordinator
 		return $base . '/' . Outbox::OUTBOX_RELATIVE_PATH;
 	}
 
-	private function runComposerTest(string $worktreePath, OutputInterface $output): bool
+	/**
+	 * Run the project's verification command in the work tree. The command is
+	 * configured per project via orchestrator_settings.test_command (default
+	 * `composer test`); an empty command disables auto-verification — the change
+	 * then relies on human review, so we report it as verified rather than failing.
+	 * @param array<string, mixed> $settings
+	 */
+	private function runVerificationTest(string $worktreePath, array $settings, OutputInterface $output): bool
 	{
 		if ($worktreePath === '' || !\is_dir($worktreePath)) {
 			return false;
 		}
 
-		$output->writeln('<info>Running composer test in worktree…</info>');
+		$rawCommand = $settings['test_command'] ?? 'composer test';
+		$command = \is_string($rawCommand) ? Strings::trim($rawCommand) : 'composer test';
 
-		$process = new Process(['composer', 'test'], $worktreePath);
-		$process->setTimeout(600);
+		if ($command === '') {
+			$output->writeln('<comment>No test_command configured — skipping auto-verification (relying on human review).</comment>');
+
+			return true;
+		}
+
+		$output->writeln(\sprintf('<info>Running verification: %s</info>', $command));
+
+		$process = Process::fromShellCommandline($command, $worktreePath, null, null, 600);
 		$process->run();
 
 		if (!$process->isSuccessful()) {
-			$output->writeln('<error>composer test failed.</error>');
+			$output->writeln('<error>Verification command failed.</error>');
 
 			return false;
 		}
 
-		$output->writeln('<info>composer test passed.</info>');
+		$output->writeln('<info>Verification passed.</info>');
 
 		return true;
 	}
@@ -200,15 +215,41 @@ final class TurnCoordinator
 			return null;
 		}
 
-		$process = new Process(['git', '-C', $worktreePath, 'diff', '--stat'], null, null, null, 30);
-		$process->run();
+		// Diff against HEAD (not the index) so staged changes are included too, and
+		// exclude the orchestrator control dir.
+		$diff = new Process(
+			['git', '-C', $worktreePath, 'diff', '--stat', 'HEAD', '--', '.', ':!.orchestrator'],
+			null,
+			null,
+			null,
+			30,
+		);
+		$diff->run();
 
-		if (!$process->isSuccessful()) {
+		if (!$diff->isSuccessful()) {
 			return null;
 		}
 
-		$output = Strings::trim($process->getOutput());
+		$stat = Strings::trim($diff->getOutput());
 
-		return $output === '' ? '(no uncommitted changes)' : $output;
+		// `git diff` never lists untracked files, so a brand-new file the agent created
+		// would be invisible to the reviewer. Append them explicitly.
+		$untracked = new Process(
+			['git', '-C', $worktreePath, 'ls-files', '--others', '--exclude-standard', '--', '.', ':!.orchestrator'],
+			null,
+			null,
+			null,
+			30,
+		);
+		$untracked->run();
+		$newFiles = $untracked->isSuccessful()
+			? \array_filter(\preg_split('/\r?\n/', Strings::trim($untracked->getOutput())) ?: [])
+			: [];
+
+		if ($newFiles !== []) {
+			$stat .= ($stat === '' ? '' : "\n") . "New (untracked) files:\n  " . \implode("\n  ", $newFiles);
+		}
+
+		return $stat === '' ? '(no uncommitted changes)' : $stat;
 	}
 }

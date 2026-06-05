@@ -54,6 +54,35 @@ $result = $preToolUse('Bash', ['command' => 'git status && composer test']);
 Assert::same(0, $result['exit']);
 Assert::same('', $result['stdout']);
 
+// PreToolUse: read-only git commands that merely MENTION a denied op as an argument
+// or option value must NOT be denied (regression — used to false-positive).
+foreach (['git log --grep=reset', 'git diff -- config/checkout.php', 'git log --oneline | grep commit', 'git show HEAD:src/Stash.php'] as $command) {
+	$result = $preToolUse('Bash', ['command' => $command]);
+	Assert::same('', $result['stdout'], $command);
+}
+
+// PreToolUse: chained denied op is still caught across separators.
+$result = $preToolUse('Bash', ['command' => 'git add . && git commit -m x']);
+Assert::contains('"permissionDecision":"deny"', $result['stdout']);
+
+// PreToolUse: writing a control file through the shell is denied (bypass of Edit/Write guard).
+foreach ([
+	'echo "{}" > .orchestrator/turn-state.json',
+	'echo x >> .orchestrator/policy.json',
+	'rm .orchestrator/claude-settings.json',
+	'mv /tmp/x .orchestrator/outbox/task1.json',
+	'sed -i s/a/b/ .orchestrator/policy.json',
+] as $command) {
+	$result = $preToolUse('Bash', ['command' => $command]);
+	Assert::contains('"permissionDecision":"deny"', $result['stdout'], $command);
+}
+
+// PreToolUse: reading a control file and writing the milestone via shell are allowed.
+$result = $preToolUse('Bash', ['command' => 'cat .orchestrator/policy.json']);
+Assert::same('', $result['stdout']);
+$result = $preToolUse('Bash', ['command' => 'echo "{}" > .orchestrator/milestone.json']);
+Assert::same('', $result['stdout']);
+
 // "checkout" mentioned after a separator is a different command — still denied ops only match within one command
 $result = $preToolUse('Bash', ['command' => 'echo hello']);
 Assert::same('', $result['stdout']);

@@ -68,6 +68,25 @@ final class TurnCollector
 	}
 
 	/**
+	 * True when an idle turn has exceeded the inactivity timeout. Measured from the
+	 * last observed activity (`progress_at`), falling back to `submitted_at` for a
+	 * turn that has not progressed at all. If neither timestamp parses, never time out
+	 * (a dead tmux is handled separately) — avoid killing a turn on a clock glitch.
+	 * @param array<string, mixed> $state
+	 */
+	public static function turnTimedOut(array $state, int $nowTs, int $timeoutSeconds): bool
+	{
+		$reference = self::parseTimestamp((string) ($state['progress_at'] ?? ''))
+			?? self::parseTimestamp((string) ($state['submitted_at'] ?? ''));
+
+		if ($reference === null) {
+			return false;
+		}
+
+		return $nowTs - $reference >= $timeoutSeconds;
+	}
+
+	/**
 	 * @param array<string, mixed> $session
 	 * @param array<string, mixed> $state
 	 * @param array<string, mixed> $pollMeta
@@ -108,32 +127,36 @@ final class TurnCollector
 			return true;
 		}
 
-		$submittedAt = $this->parseTimestamp((string) ($state['submitted_at'] ?? ''));
+		$paneSha = \sha1($this->tmux->capturePane($tmuxName));
+		$now = new \DateTimeImmutable();
 
-		if ($submittedAt !== null && \time() - $submittedAt >= $this->turnTimeoutSeconds) {
+		// Pane changed since last run → the agent is actively working. Record the
+		// progress so the timeout measures INACTIVITY, not total elapsed time: a long
+		// but progressing turn (big implementation + tests) must not be force-failed.
+		if ($paneSha !== (string) ($state['pane_sha1'] ?? '')) {
+			$state['pane_sha1'] = $paneSha;
+			$state['progress_at'] = $now->format(\DATE_ATOM);
+			$this->turnStates->write($worktree, $state);
+			$this->monitor->patchSession((int) ($session['id'] ?? 0), [
+				'last_activity_at' => $now->format(\DATE_ATOM),
+			]);
+
+			return false;
+		}
+
+		// Pane is idle. Fail the turn only after turnTimeoutSeconds of NO activity.
+		if (self::turnTimedOut($state, $now->getTimestamp(), $this->turnTimeoutSeconds)) {
 			$this->finalizeFailed(
 				$session,
 				$task,
 				$pollMeta,
 				$state,
 				$turnNumber,
-				\sprintf('Turn timed out after %d seconds without a milestone.', $this->turnTimeoutSeconds),
+				\sprintf('Turn stalled: no activity for %d seconds without a milestone.', $this->turnTimeoutSeconds),
 				$output,
 			);
 
 			return true;
-		}
-
-		$paneSha = \sha1($this->tmux->capturePane($tmuxName));
-
-		if ($paneSha !== (string) ($state['pane_sha1'] ?? '')) {
-			$state['pane_sha1'] = $paneSha;
-			$this->turnStates->write($worktree, $state);
-			$this->monitor->patchSession((int) ($session['id'] ?? 0), [
-				'last_activity_at' => (new \DateTimeImmutable())->format(\DATE_ATOM),
-			]);
-
-			return false;
 		}
 
 		$nudges = (int) ($state['nudges'] ?? 0);
@@ -187,7 +210,7 @@ final class TurnCollector
 		$this->coordinator->finalizeTurn($session, $task, $pollMeta, $milestone, $turnNumber, $output);
 	}
 
-	private function parseTimestamp(string $value): ?int
+	private static function parseTimestamp(string $value): ?int
 	{
 		if ($value === '') {
 			return null;

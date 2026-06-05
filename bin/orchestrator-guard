@@ -76,7 +76,12 @@ function guardBashDenyReason(string $command, array $policy): ?string
 	}
 
 	foreach (\array_unique($deniedGit) as $operation) {
-		$pattern = '/\bgit\b[^|&;]*?\b' . \preg_quote($operation, '/') . '\b/';
+		// Match the operation only when it is the git SUBCOMMAND — i.e. right after
+		// `git` and any global options (-C path, -c k=v, --long[=val]). This avoids
+		// false-positive denials when the word merely appears as an argument or value,
+		// e.g. `git log --grep=reset` or `git diff -- config/checkout.php`.
+		$pattern = '/\bgit(?:\s+-C\s+\S+|\s+-c\s+\S+|\s+--?[\w-]+(?:=\S+)?)*\s+'
+			. \preg_quote($operation, '/') . '\b/';
 
 		if (\preg_match($pattern, $command) === 1) {
 			return \sprintf(
@@ -90,6 +95,35 @@ function guardBashDenyReason(string $command, array $policy): ?string
 		|| \preg_match('/\brm\b[^|&;]*\s-[a-zA-Z]*r[a-zA-Z]*\s+(?:[^|&;]*\s)?-[a-zA-Z]*f/', $command) === 1
 		|| \preg_match('/\brm\b[^|&;]*\s-[a-zA-Z]*f[a-zA-Z]*\s+(?:[^|&;]*\s)?-[a-zA-Z]*r/', $command) === 1) {
 		return 'Orchestrator policy: recursive force delete (rm -rf) is not allowed in this session.';
+	}
+
+	return guardBashControlFileWriteReason($command);
+}
+
+/**
+ * The Edit/Write guard protects the orchestrator's control files, but an agent could
+ * bypass it by writing through a shell (redirection, tee, rm, mv, sed -i, …). Deny any
+ * Bash command that mutates a protected .orchestrator/ control file. milestone.json is
+ * intentionally NOT protected — the agent must be able to write it.
+ */
+function guardBashControlFileWriteReason(string $command): ?string
+{
+	// Delimiter is ~ because the path contains / (which would otherwise close a /…/ regex).
+	$protected = '\.orchestrator/(?:turn-state\.json|policy\.json|claude-settings\.json|outbox)';
+
+	$writePatterns = [
+		// Output redirection / clobber into the file: `> .orchestrator/policy.json`, `2>>…`.
+		'~[0-9&]*>>?\s*[\'"]?' . $protected . '~',
+		// tee / mutating file commands that name the path as an argument.
+		'~\b(?:tee|rm|mv|cp|truncate|dd|ln|install|chmod|chown)\b[^|&;]*' . $protected . '~',
+		// in-place stream edit.
+		'~\bsed\b[^|&;]*\s-\S*i[^|&;]*' . $protected . '~',
+	];
+
+	foreach ($writePatterns as $pattern) {
+		if (\preg_match($pattern, $command) === 1) {
+			return 'Orchestrator policy: orchestrator control files under .orchestrator/ may not be modified via the shell — only .orchestrator/milestone.json is writable.';
+		}
 	}
 
 	return null;

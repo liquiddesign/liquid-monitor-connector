@@ -37,9 +37,13 @@ $sync = new RepoSynchronizer();
 // Clean working tree.
 Assert::true($sync->isClean($work));
 
-// Untracked file makes it dirty.
+// Untracked files do NOT make it dirty — they never appear in `git diff HEAD`,
+// so they cannot pollute the agent's turn diff (e.g. deployment artifacts under
+// .claude/, local notes).
 \file_put_contents($work . '/dirty.txt', "x\n");
-Assert::false($sync->isClean($work));
+@\mkdir($work . '/.claude/skills/lmo', 0o777, true);
+\file_put_contents($work . '/.claude/skills/lmo/SKILL.md', "x\n");
+Assert::true($sync->isClean($work));
 \unlink($work . '/dirty.txt');
 Assert::true($sync->isClean($work));
 
