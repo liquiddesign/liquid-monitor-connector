@@ -19,6 +19,7 @@ class LiquidMonitorLoggerDI extends \Nette\DI\CompilerExtension
 		$levels = Expect::array([ILogger::ERROR, ILogger::EXCEPTION, ILogger::CRITICAL, ILogger::WARNING, ILogger::INFO]);
 
 		return Expect::structure([
+			// @deprecated — title is no longer sent to the backend; kept here so existing NEON configs with `title:` do not break
 			'title' => Expect::string(),
 			'levels' => $levels->mergeDefaults(false),
 		]);
@@ -39,7 +40,6 @@ class LiquidMonitorLoggerDI extends \Nette\DI\CompilerExtension
 		$builder->addDefinition('tracy.logger', new ServiceDefinition())
 			->setType(LiquidMonitorLogger::class)
 			->addSetup('setProperties', [
-				$config->title,
 				$config->levels,
 			]);
 	}
