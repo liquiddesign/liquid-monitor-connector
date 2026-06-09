@@ -23,6 +23,7 @@
         "guzzlehttp/guzzle": "^7.0",
         "nesbot/carbon": "^2.0 || ^3.0",
         "liquiddesign/base": "^2.0.33",
+        "liquiddesign/nette-log-viewer": "^1.2",
         "symfony/console": "^7.0 || ^8.0",
         "symfony/process": "^7.0 || ^8.0",
         "symfony/dotenv": "^7.0 || ^8.0"

@@ -7,8 +7,30 @@ Connector mezi webem a Liquid Monitor.
 - **`Cron`** (`src/Cron.php`) — Nette DI integrace pro produkční reporting (schedule-job, error logging, health check).
 - **`orchestrator:run`** (`bin/orchestrator-run`) — autonomous programming worker. Pollne `/api/orchestrator/worker/poll`, v repo-mode pracuje přímo v repu (volitelně git worktree), spustí **tmux + interaktivní Claude Code REPL** (`send-keys`, `--resume`), doručí brief, parsuje JSON milníky, spustí `composer test` a zapíše `triage_result` zpět na monitor.
 - **`orchestrator-init`** (`bin/orchestrator-init`) — jednorázový setup hostu: vygeneruje `<repo>/.orchestrator/.env`, doplní `.orchestrator/` do `.gitignore` a ověří kredity proti monitoru.
+- **`LiquidMonitorLogViewerDI`** (`src/Bridges/LiquidMonitorLogViewerDI.php`) — DI extension, která vystaví read-only JSON API pro Tracy logy přímo z connectoru. Bundluje balíček [`liquiddesign/nette-log-viewer`](https://github.com/liquiddesign/nette-log-viewer) a registruje jeho routy/presentery, takže hostová aplikace nemusí balíček instalovat ani registrovat zvlášť. Viz [Log viewer](#log-viewer).
 
 Starý `bin/triage-pull` (read-only `claude -p`) je nahrazen orchestrátorem — nepoužívat.
+
+## Log viewer
+
+Connector umí vystavit identické API jako `liquiddesign/nette-log-viewer` — read-only přístup k Tracy logům (`Debugger::$logDirectory`) přes JSON endpointy pod `/<urlPrefix>/api/<action>` (`list`, `stat`, `view`, `search`, `download`). Slouží monitoru/orchestrátoru pro čtení logů aplikace.
+
+Registrace v host aplikaci:
+
+```neon
+extensions:
+    liquidMonitorLogViewer: LiquidMonitorConnector\Bridges\LiquidMonitorLogViewerDI
+
+# volitelné (výchozí hodnoty níže):
+liquidMonitorLogViewer:
+    urlPrefix: log-viewer
+    presenter: LogViewer:LogViewer
+    apiPresenter: LogViewer:LogViewerApi
+    registerRoutes: true            # false = routy si spravuje host sám
+    registerPresenterMapping: true  # false = host má vlastní presenter mapping
+```
+
+**Přístup je gatovaný přes Tracy debug mode** (`Debugger::isEnabled()`) ve startupu presenterů — stejně jako v samotném balíčku. Žádná další autentizace se nepřidává; produkční přístup monitoru je tedy nutné řešit přes Tracy debug allowlist (IP), případně vlastními subclassy presenterů v aplikaci.
 
 ## Orchestrator worker setup
 
