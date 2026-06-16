@@ -8,6 +8,7 @@ Connector mezi webem a Liquid Monitor.
 - **`orchestrator:run`** (`bin/orchestrator-run`) — autonomous programming worker. Pollne `/api/orchestrator/worker/poll`, v repo-mode pracuje přímo v repu (volitelně git worktree), spustí **tmux + interaktivní Claude Code REPL** (`send-keys`, `--resume`), doručí brief, parsuje JSON milníky, spustí `composer test` a zapíše `triage_result` zpět na monitor.
 - **`orchestrator-init`** (`bin/orchestrator-init`) — jednorázový setup hostu: vygeneruje `<repo>/.orchestrator/.env`, doplní `.orchestrator/` do `.gitignore` a ověří kredity proti monitoru.
 - **`LiquidMonitorLogViewerDI`** (`src/Bridges/LiquidMonitorLogViewerDI.php`) — DI extension, která vystaví read-only JSON API pro Tracy logy přímo z connectoru. Bundluje balíček [`liquiddesign/nette-log-viewer`](https://github.com/liquiddesign/nette-log-viewer) a registruje jeho routy/presentery, takže hostová aplikace nemusí balíček instalovat ani registrovat zvlášť. Viz [Log viewer](#log-viewer).
+- **`LiquidMonitorDbQueryDI`** (`src/Bridges/LiquidMonitorDbQueryDI.php`) — DI extension pro read-only SQL dotazy proti databázi host aplikace (PDO proxy pro monitor orchestrátor). Viz [DB query proxy](#db-query-proxy).
 
 Starý `bin/triage-pull` (read-only `claude -p`) je nahrazen orchestrátorem — nepoužívat.
 
@@ -31,6 +32,52 @@ liquidMonitorLogViewer:
 ```
 
 **Přístup je gatovaný přes Tracy debug mode** (`Debugger::isEnabled()`) ve startupu presenterů — stejně jako v samotném balíčku. Žádná další autentizace se nepřidává; produkční přístup monitoru je tedy nutné řešit přes Tracy debug allowlist (IP), případně vlastními subclassy presenterů v aplikaci.
+
+## DB query proxy
+
+Connector umí vystavit read-only JSON API pro SQL dotazy proti databázi host aplikace. Monitor (ne agent) posílá `sql` + `connection` credentials v HTTP body; connector se připojí přes PDO, vynutí SELECT-only guardy, LIMIT wrap a statement timeout a vrátí flat JSON `{columns, rows, row_count, limit, truncated}`.
+
+Registrace v host aplikaci:
+
+```neon
+extensions:
+    liquidMonitorDbQuery: LiquidMonitorConnector\Bridges\LiquidMonitorDbQueryDI
+
+liquidMonitorDbQuery:
+    urlPrefix: db-query
+    apiPresenter: DbQuery:DbQueryApi
+    registerRoutes: true
+    registerPresenterMapping: true
+    apiToken: '…'   # doporučeno na produkci — vyžaduje X-Api-Key header
+```
+
+**Endpoint:** `POST /{urlPrefix}/api/query`
+
+**Request body:**
+
+```json
+{
+  "sql": "SELECT 1 AS connected",
+  "connection": {
+    "driver": "mariadb",
+    "host": "127.0.0.1",
+    "port": 3306,
+    "database": "my_app",
+    "username": "readonly_user",
+    "password": "…"
+  },
+  "row_limit": 100,
+  "statement_timeout_seconds": 5
+}
+```
+
+**Bezpečnostní model (dvojitý gate):**
+
+1. **Trusted IP / Tracy debug mode** — `Debugger::isEnabled()` ve startupu presenteru (stejně jako log-viewer). Na produkci přidej IP monitoru do `access.debug` v host NEON.
+2. **Credentials v HTTP body** — connector se k DB připojí jen s `connection` objektem z requestu. Bez správných údajů SELECT neproběhne.
+3. **Volitelný `apiToken`** — pokud je nastaven v NEON, vyžaduje shodný `X-Api-Key` header (`hash_equals`).
+
+**Odpovědi:** úspěch `200` s flat JSON (bez vnořeného `data`); chyby `{ "error": "…", "code": 400|403|422|500 }`.
 
 ## Orchestrator worker setup
 
