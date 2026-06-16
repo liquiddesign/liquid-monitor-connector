@@ -42,13 +42,17 @@ Registrace v host aplikaci:
 ```neon
 extensions:
     liquidMonitorDbQuery: LiquidMonitorConnector\Bridges\LiquidMonitorDbQueryDI
+```
 
+Tím se route `db-query/api/query`, presenter mapping i config service zaregistrují automaticky — žádný vlastní presenter ani záznam v `pages.neon` není potřeba. Volitelná konfigurace (vše má rozumný default):
+
+```neon
 liquidMonitorDbQuery:
     urlPrefix: db-query
     apiPresenter: DbQuery:DbQueryApi
     registerRoutes: true
     registerPresenterMapping: true
-    apiToken: '…'   # doporučeno na produkci — vyžaduje X-Api-Key header
+    apiToken: '…'   # volitelné — když je nastaveno, navíc vyžaduje X-Api-Key header
 ```
 
 **Endpoint:** `POST /{urlPrefix}/api/query`
@@ -71,11 +75,11 @@ liquidMonitorDbQuery:
 }
 ```
 
-**Bezpečnostní model (dvojitý gate):**
+**Bezpečnostní model:**
 
-1. **Trusted IP / Tracy debug mode** — `Debugger::isEnabled()` ve startupu presenteru (stejně jako log-viewer). Na produkci přidej IP monitoru do `access.debug` v host NEON.
-2. **Credentials v HTTP body** — connector se k DB připojí jen s `connection` objektem z requestu. Bez správných údajů SELECT neproběhne.
-3. **Volitelný `apiToken`** — pokud je nastaven v NEON, vyžaduje shodný `X-Api-Key` header (`hash_equals`).
+1. **Trusted IP / Tracy debug mode** — presenter servíruje jen v debug módu (`Debugger::$productionMode === false`), což je per-IP gate řízený `Configurator::setDebugMode` z whitelistu `access.debug` v host NEON (stejný mechanismus jako log-viewer). Mimo trusted IP presenter vrací `403`; gate je fail-closed (i nerozhodnutý `Detect` stav odmítne). Na produkci přidej IP monitoru do `access.debug`. **Pozn.:** nepoužívej `Debugger::isEnabled()` — to jen hlásí, že Tracy byla aktivovaná, a zůstává `true` i v produkci, takže nikoho neodřízne.
+2. **Credentials v HTTP body** — connector se k DB připojí jen s `connection` objektem z requestu (posílá monitor). Bez správných údajů SELECT neproběhne, takže **samostatný token na DB není potřeba** — stačí trusted IP.
+3. **Volitelný `apiToken`** — pokud je nastaven v NEON, navíc vyžaduje shodný `X-Api-Key` header (`hash_equals`). Defaultně vypnutý.
 
 **Odpovědi:** úspěch `200` s flat JSON (bez vnořeného `data`); chyby `{ "error": "…", "code": 400|403|422|500 }`.
 

@@ -15,9 +15,12 @@ use Tracy\Debugger;
  * JSON REST API for read-only database queries proxied through the connector.
  *
  * Access control:
- *  1. Tracy debug mode (Debugger::isEnabled()) — same gate as log-viewer.
- *  2. Valid database connection credentials in the request body.
- *  3. Optional apiToken from DI — requires matching X-Api-Key header.
+ *  1. Trusted IP — Tracy debug mode (Debugger::$productionMode === false), i.e. the same
+ *     per-IP gate the host app uses for the log viewer (Configurator::setDebugMode with the
+ *     access.debug IP whitelist). The database connection credentials themselves are supplied
+ *     by the caller (the monitor) in the request body, so no separate token is required.
+ *  2. Optional apiToken from DI — when configured, additionally requires a matching X-Api-Key
+ *     header. A trusted IP alone is sufficient when no apiToken is set.
  */
 class DbQueryApiPresenter extends Presenter
 {
@@ -71,11 +74,27 @@ class DbQueryApiPresenter extends Presenter
 		$this->sendJsonPayload($result);
 	}
 
+	/**
+	 * Whether the request is served from a trusted IP, i.e. the host app runs in Tracy debug
+	 * mode for this client (Debugger::$productionMode === false).
+	 *
+	 * NB: Debugger::isEnabled() must NOT be used for this — it merely reports that Tracy was
+	 * activated and stays true in production, so it would never block anyone. Only an explicit
+	 * $productionMode === false counts as debug mode; anything else (true, or the null Detect
+	 * default before bootstrap) fails closed.
+	 */
+	public static function isTrustedDebugMode(?bool $productionMode): bool
+	{
+		return $productionMode === false;
+	}
+
 	protected function startup(): void
 	{
 		parent::startup();
 
-		if (!Debugger::isEnabled()) {
+		// Trusted-IP gate: serve only in Tracy debug mode (per-IP via the host's
+		// Configurator::setDebugMode IP whitelist).
+		if (!self::isTrustedDebugMode(Debugger::$productionMode)) {
 			$this->sendErrorResponse(403, 'Access denied');
 		}
 
