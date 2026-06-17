@@ -69,6 +69,10 @@ liquidMonitorLogger:
     levels: [error, exception, critical]  # volitelné
 ```
 
+Knihovna dále nabízí read-only API extension pro monitor/AI agenta: `liquidMonitorLogViewer` (Tracy logy) a `liquidMonitorDbQuery` (SQL dotazy nad DB, `src/DbQuery/`). Detaily v README.
+
+**Přístupový gate (LogViewer i DbQuery):** oba endpointy servírují jen v Tracy debug módu (`Debugger::$productionMode === false`), což je per-IP whitelist `parameters.access.debug` v host NEONu (`Configurator::setDebugMode`). **Volající IP (monitor) musí být v `access.debug`, NE v `access.trusted`** — `access.trusted` se pro tyhle endpointy nevyhodnocuje, takže IP jen tam → `403 Access denied`. Gate je fail-closed; nepoužívej `Debugger::isEnabled()` (zůstává `true` i v produkci).
+
 ## Kódové konvence
 
 - PHP 8.1+

@@ -17,7 +17,9 @@ use Tracy\Debugger;
  * Access control:
  *  1. Trusted IP — Tracy debug mode (Debugger::$productionMode === false), i.e. the same
  *     per-IP gate the host app uses for the log viewer (Configurator::setDebugMode with the
- *     access.debug IP whitelist). The database connection credentials themselves are supplied
+ *     access.debug IP whitelist). Only access.debug is consulted here — access.trusted (which
+ *     the host app may use for cron/other access) is NOT evaluated, so a caller whose IP is only
+ *     in access.trusted still gets 403. The database connection credentials themselves are supplied
  *     by the caller (the monitor) in the request body, so no separate token is required.
  *  2. Optional apiToken from DI — when configured, additionally requires a matching X-Api-Key
  *     header. A trusted IP alone is sufficient when no apiToken is set.
