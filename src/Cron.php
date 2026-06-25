@@ -46,6 +46,10 @@ class Cron
 
 	private bool $enabled;
 
+	private string $logUrl;
+
+	private string|null $logApiKey;
+
 	private Request $httpRequest;
 
 	private string|null $currentCronCode = null;
@@ -68,11 +72,23 @@ class Cron
 		}
 	}
 	
-	public function setConfiguration(string $url, string|null $apiKey, bool $enabled): void
-	{
+	/**
+	 * Crony (joby + read přehledy) míří na `$url`/`$apiKey`, logy/chyby na
+	 * `$logUrl`/`$logApiKey`. Logové parametry jsou volitelné — když nejsou
+	 * předané (null), spadnou na cronový kanál (zpětná kompatibilita).
+	 */
+	public function setConfiguration(
+		string $url,
+		string|null $apiKey,
+		bool $enabled,
+		string|null $logUrl = null,
+		string|null $logApiKey = null,
+	): void {
 		$this->url = $url;
 		$this->apiKey = $apiKey;
 		$this->enabled = $enabled;
+		$this->logUrl = $logUrl ?? $url;
+		$this->logApiKey = $logApiKey ?? $apiKey;
 	}
 
 	public function isCronRunning(string $cronCode): bool
@@ -303,7 +319,7 @@ class Cron
 			'createIfNotExists' => $createIfNotExists,
 			'arguments' => $arguments,
 		];
-		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $params, true);
+		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $this->getApiKey(), $params, true);
 
 		Debugger::log("Cron job scheduled: $cronId", 'cron-schedule');
 	}
@@ -317,7 +333,7 @@ class Cron
 		\register_shutdown_function([$this, 'shutdownFunction']);
 		
 		$params = ['data' => $this->processData($data)];
-		$this->send($this->getUrl() . self::JOB_START_ENDPOINT, $params);
+		$this->send($this->getUrl() . self::JOB_START_ENDPOINT, $this->getApiKey(), $params);
 	}
 
 	/**
@@ -336,7 +352,7 @@ class Cron
 		$memoryUsage = (int) (\memory_get_peak_usage(true) / 1024 / 1024);
 
 		$params = ['data' => $this->processData($data), 'ram' => $memoryUsage];
-		$this->send($this->getUrl() . self::JOB_FINISH_ENDPOINT, $params);
+		$this->send($this->getUrl() . self::JOB_FINISH_ENDPOINT, $this->getApiKey(), $params);
 	}
 
 	/**
@@ -350,7 +366,7 @@ class Cron
 		}
 
 		$params = ['data' => $this->processData($data)];
-		$this->send($this->getUrl() . self::JOB_PROGRESS_ENDPOINT, $params);
+		$this->send($this->getUrl() . self::JOB_PROGRESS_ENDPOINT, $this->getApiKey(), $params);
 	}
 
 	/**
@@ -370,7 +386,7 @@ class Cron
 		$memoryUsage = (int) (\memory_get_peak_usage(true) / 1024 / 1024);
 
 		$params = ['data' => $this->processData($data), 'ram' => $memoryUsage];
-		$this->send($this->getUrl() . self::JOB_FAIL_ENDPOINT, $params);
+		$this->send($this->getUrl() . self::JOB_FAIL_ENDPOINT, $this->getApiKey(), $params);
 	}
 
 	/**
@@ -381,7 +397,7 @@ class Cron
 	public function log(array $data, string $level): void
 	{
 		$params = $data + ['level' => $level];
-		$this->send($this->getUrl() . self::LOG_ENDPOINT, $params);
+		$this->send($this->getLogUrl() . self::LOG_ENDPOINT, $this->getLogApiKey(), $params);
 	}
 
 	public function isEnabled(): bool
@@ -406,6 +422,16 @@ class Cron
 	public function getApiKey(): string|null
 	{
 		return $this->apiKey;
+	}
+
+	public function getLogUrl(): string
+	{
+		return $this->logUrl;
+	}
+
+	public function getLogApiKey(): string|null
+	{
+		return $this->logApiKey;
 	}
 
 	/**
@@ -458,16 +484,16 @@ class Cron
 
 	/**
 	 * @param string $url
+	 * @param string|null $apiKey API klíč kanálu, na který se posílá (cron / log).
 	 * @param array<string, mixed> $params
 	 * @param bool $throw
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
 	 * @throws \Exception
 	 */
-	private function send(string $url, array $params, bool $throw = false): void
+	private function send(string $url, string|null $apiKey, array $params, bool $throw = false): void
 	{
 		$client = new Client();
-		$apiKey = $this->getApiKey();
 
 		if (!$apiKey || !$this->isEnabled()) {
 			if ($throw) {

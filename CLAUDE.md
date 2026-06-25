@@ -56,9 +56,17 @@ extensions:
     liquidMonitorConnector: LiquidMonitorConnector\Bridges\LiquidMonitorConnectorDI
 
 liquidMonitorConnector:
-    url: 'https://monitor.example.com/connector'
+    url: 'https://monitor.example.com/connector'   # sdílený fallback (povinné)
     apiKey: 'xxx'
     enabled: true
+    # Volitelné: crony a logy/chyby na různé instance monitoru. Každý kanál
+    # nese vlastní url i apiKey; co se vynechá, dědí z top-level url/apiKey.
+    # Typický scénář migrace: crony nech na staré stabilní instanci (top-level
+    # url) a chyby napoj na novou instanci s AI orchestrátorem.
+    log:
+        url: 'https://new-monitor.example.com/connector'
+        apiKey: 'yyy'
+    # cron: lze přepsat stejným způsobem (např. když je hlavní url pro logy)
 
 # Logger extension (volitelné, nahrazuje Tracy logger)
 extensions:
