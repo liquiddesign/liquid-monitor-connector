@@ -45,6 +45,8 @@ class Cron
 
 	private bool $enabled;
 
+	private bool|string $verifyTls = true;
+
 	private Request $httpRequest;
 
 	private string|null $currentCronCode = null;
@@ -67,11 +69,18 @@ class Cron
 		}
 	}
 	
-	public function setConfiguration(string $url, string|null $apiKey, bool $enabled): void
+	/**
+	 * @param bool|string $verifyTls TLS ověření certifikátu monitoru předané Guzzlu:
+	 *   `true` (default) = ověřovat proti systémovým CA, `false` = vypnuto (jen lokální
+	 *   dev se self-signed certem — vypnutí umožňuje MITM odposlech `apiKey`!), string =
+	 *   cesta k vlastnímu CA bundlu.
+	 */
+	public function setConfiguration(string $url, string|null $apiKey, bool $enabled, bool|string $verifyTls = true): void
 	{
 		$this->url = $url;
 		$this->apiKey = $apiKey;
 		$this->enabled = $enabled;
+		$this->verifyTls = $verifyTls;
 	}
 
 	public function isCronRunning(string $cronCode): bool
@@ -395,6 +404,11 @@ class Cron
 		return $this->apiKey;
 	}
 
+	public function getVerifyTls(): bool|string
+	{
+		return $this->verifyTls;
+	}
+
 	/**
 	 * @param array<mixed>|\Exception|null $data
 	 * @return array<mixed>|null
@@ -466,7 +480,7 @@ class Cron
 
 		$options = [
 			'json' => ['apiKey' => $apiKey, 'jobId' => $this->getJobId()] + $params,
-			'verify' => false,
+			'verify' => $this->verifyTls,
 			'headers' => [
 				'Accept' => 'application/json',
 				'Content-Type' => 'application/json',

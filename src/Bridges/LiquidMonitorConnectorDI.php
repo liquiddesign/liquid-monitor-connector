@@ -18,6 +18,9 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 			'url' => Expect::string()->required(),
 			'apiKey' => Expect::string(null),
 			'enabled' => Expect::bool(true),
+			// TLS ověření certifikátu monitoru: true = ověřovat (default), false = vypnuto
+			// (jen dev se self-signed certem), string = cesta k vlastnímu CA bundlu.
+			'verifyTls' => Expect::anyOf(Expect::bool(), Expect::string())->default(true),
 		]);
 	}
 	
@@ -29,7 +32,7 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 		$builder = $this->getContainerBuilder();
 		
 		$cron = $builder->addDefinition('liquidMonitorConnector')->setType(Cron::class);
-		$cron->addSetup('setConfiguration', [$config->url, $config->apiKey, $config->enabled]);
+		$cron->addSetup('setConfiguration', [$config->url, $config->apiKey, $config->enabled, $config->verifyTls]);
 
 		$builder->addDefinition('liquidMonitorConnector.getCronService')->setType(GetCronService::class);
 	}
