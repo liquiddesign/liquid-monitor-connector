@@ -18,6 +18,16 @@ $reporter->setConfiguration('https://mon/api_connector', 'KEY', true);
 Assert::same('https://mon/api_connector', $reporter->getUrl());
 Assert::same('KEY', $reporter->getApiKey());
 Assert::true($reporter->isEnabled());
+Assert::true($reporter->getVerifyTls()); // TLS cert se defaultně ověřuje
+
+// --- verifyTls override projde do getteru (bool i string CA bundle). ---
+$devReporter = new ErrorReporter(new Request(new UrlScript('http://localhost/')));
+$devReporter->setConfiguration('https://mon.local/api_connector', 'KEY', true, false);
+Assert::false($devReporter->getVerifyTls());
+
+$caReporter = new ErrorReporter(new Request(new UrlScript('http://localhost/')));
+$caReporter->setConfiguration('https://mon.local/api_connector', 'KEY', true, '/etc/ssl/dev-ca.pem');
+Assert::same('/etc/ssl/dev-ca.pem', $caReporter->getVerifyTls());
 
 // --- Bez příchozího těla (běžný request) není jobId. ---
 Assert::null($reporter->getJobId());

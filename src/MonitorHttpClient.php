@@ -18,6 +18,16 @@ use Tracy\ILogger;
 class MonitorHttpClient
 {
 	/**
+	 * @param bool|string $verify TLS ověření peeru předané Guzzlu: `true` (default) =
+	 *   ověřovat proti systémovým CA, `false` = vypnuto (jen lokální dev se self-signed
+	 *   certem — POZOR, vypnutí umožňuje MITM odposlech `apiKey`!), string = cesta
+	 *   k vlastnímu CA bundlu (preferovaný způsob pro self-signed dev certy).
+	 */
+	public function __construct(private bool|string $verify = true)
+	{
+	}
+
+	/**
 	 * Pošle POST na monitor. Vypnutý kanál (chybějící apiKey / `enabled:false`)
 	 * se tiše přeskočí — pokud `$throw`, místo toho vyhodí
 	 * `LiquidMonitorDisabledException` (cron scheduling to potřebuje rozlišit).
@@ -40,7 +50,7 @@ class MonitorHttpClient
 
 		$options = [
 			'json' => ['apiKey' => $apiKey] + $params,
-			'verify' => false,
+			'verify' => $this->verify,
 			'headers' => [
 				'Accept' => 'application/json',
 				'Content-Type' => 'application/json',

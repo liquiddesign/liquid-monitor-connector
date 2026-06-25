@@ -49,6 +49,8 @@ class Cron
 
 	private string|null $logApiKey;
 
+	private bool|string $verifyTls = true;
+
 	private Request $httpRequest;
 
 	private string|null $currentCronCode = null;
@@ -75,6 +77,8 @@ class Cron
 	 * Crony (joby + read přehledy) míří na `$url`/`$apiKey`, logy/chyby na
 	 * `$logUrl`/`$logApiKey`. Logové parametry jsou volitelné — když nejsou
 	 * předané (null), spadnou na cronový kanál (zpětná kompatibilita).
+	 * @param bool|string $verifyTls TLS ověření certifikátu monitoru (viz `MonitorHttpClient`):
+	 *   `true` (default) = ověřovat, `false` = vypnuto (jen dev), string = cesta k CA bundlu.
 	 */
 	public function setConfiguration(
 		string $url,
@@ -82,12 +86,14 @@ class Cron
 		bool $enabled,
 		string|null $logUrl = null,
 		string|null $logApiKey = null,
+		bool|string $verifyTls = true,
 	): void {
 		$this->url = $url;
 		$this->apiKey = $apiKey;
 		$this->enabled = $enabled;
 		$this->logUrl = $logUrl ?? $url;
 		$this->logApiKey = $logApiKey ?? $apiKey;
+		$this->verifyTls = $verifyTls;
 	}
 
 	public function isCronRunning(string $cronCode): bool
@@ -433,6 +439,11 @@ class Cron
 		return $this->logApiKey;
 	}
 
+	public function getVerifyTls(): bool|string
+	{
+		return $this->verifyTls;
+	}
+
 	/**
 	 * @param array<mixed>|\Exception|null $data
 	 * @return array<mixed>|null
@@ -494,6 +505,6 @@ class Cron
 	 */
 	private function send(string $url, string|null $apiKey, array $params, bool $throw = false): void
 	{
-		(new MonitorHttpClient())->post($url, $apiKey, $this->isEnabled(), ['jobId' => $this->getJobId()] + $params, $throw);
+		(new MonitorHttpClient($this->verifyTls))->post($url, $apiKey, $this->isEnabled(), ['jobId' => $this->getJobId()] + $params, $throw);
 	}
 }

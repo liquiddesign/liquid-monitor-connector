@@ -23,15 +23,22 @@ class ErrorReporter
 
 	private bool $enabled;
 
+	private bool|string $verifyTls = true;
+
 	public function __construct(private Request $httpRequest)
 	{
 	}
 
-	public function setConfiguration(string $url, string|null $apiKey, bool $enabled): void
+	/**
+	 * @param bool|string $verifyTls TLS ověření certifikátu monitoru (viz `MonitorHttpClient`):
+	 *   `true` (default) = ověřovat, `false` = vypnuto (jen dev), string = cesta k CA bundlu.
+	 */
+	public function setConfiguration(string $url, string|null $apiKey, bool $enabled, bool|string $verifyTls = true): void
 	{
 		$this->url = $url;
 		$this->apiKey = $apiKey;
 		$this->enabled = $enabled;
+		$this->verifyTls = $verifyTls;
 	}
 
 	/**
@@ -41,7 +48,7 @@ class ErrorReporter
 	public function log(array $data, string $level): void
 	{
 		$params = ['jobId' => $this->getJobId()] + $data + ['level' => $level];
-		(new MonitorHttpClient())->post($this->url . self::LOG_ENDPOINT, $this->apiKey, $this->enabled, $params);
+		(new MonitorHttpClient($this->verifyTls))->post($this->url . self::LOG_ENDPOINT, $this->apiKey, $this->enabled, $params);
 	}
 
 	public function getUrl(): string
@@ -57,6 +64,11 @@ class ErrorReporter
 	public function isEnabled(): bool
 	{
 		return $this->enabled;
+	}
+
+	public function getVerifyTls(): bool|string
+	{
+		return $this->verifyTls;
 	}
 
 	/**

@@ -22,6 +22,16 @@ Assert::same('KEY1', $cron->getApiKey());
 Assert::same('https://v1/api_connector', $cron->getLogUrl());
 Assert::same('KEY1', $cron->getLogApiKey());
 Assert::true($cron->isEnabled());
+Assert::true($cron->getVerifyTls()); // TLS cert se defaultně ověřuje
+
+// --- verifyTls override projde do getteru (bool i string CA bundle). ---
+$cron = $makeCron();
+$cron->setConfiguration('https://v1/api_connector', 'KEY1', true, null, null, false);
+Assert::false($cron->getVerifyTls());
+
+$cron = $makeCron();
+$cron->setConfiguration('https://v1/api_connector', 'KEY1', true, null, null, '/etc/ssl/dev-ca.pem');
+Assert::same('/etc/ssl/dev-ca.pem', $cron->getVerifyTls());
 
 // --- 5-arg volání: každý kanál vlastní url + apiKey. ---
 $cron = $makeCron();

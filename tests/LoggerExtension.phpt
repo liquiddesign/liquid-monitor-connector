@@ -58,8 +58,14 @@ $builder = $logger->getContainerBuilder();
 Assert::false($builder->hasDefinition('liquidMonitorConnector')); // cronová služba se nevyžaduje
 
 $reporter = $builder->getDefinitionByType(ErrorReporter::class); // právě jedna
-Assert::same(['https://mon/api_connector', 'KEY', true], $reporterArgs($reporter));
+Assert::same(['https://mon/api_connector', 'KEY', true, true], $reporterArgs($reporter)); // verifyTls defaultně true
 Assert::same(LiquidMonitorLogger::class, $builder->getDefinition('tracy.logger')->getType());
+
+// --- Standalone s verifyTls override (dev se self-signed certem). ---
+$compiler = new Compiler();
+$logger = $loadLogger($compiler, ['url' => 'https://mon.local/api_connector', 'apiKey' => 'KEY', 'verifyTls' => false]);
+$reporter = $logger->getContainerBuilder()->getDefinitionByType(ErrorReporter::class);
+Assert::same(['https://mon.local/api_connector', 'KEY', true, false], $reporterArgs($reporter));
 
 // --- Standalone bez url → fail-fast, jasná hláška. ---
 Assert::exception(
@@ -79,7 +85,7 @@ $builder = $logger->getContainerBuilder();
 
 Assert::false($builder->hasDefinition('liquidMonitorLogger.errorReporter')); // žádný duplicitní reporter
 Assert::same(
-	['https://errors/api_connector', 'ERR', true],
+	['https://errors/api_connector', 'ERR', true, true], // verifyTls defaultně true
 	$reporterArgs($builder->getDefinition('liquidMonitorConnector.errorReporter')),
 );
 Assert::same(LiquidMonitorLogger::class, $builder->getDefinition('tracy.logger')->getType());

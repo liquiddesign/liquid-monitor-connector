@@ -51,6 +51,9 @@ class LiquidMonitorLoggerDI extends \Nette\DI\CompilerExtension
 			'url' => Expect::string()->nullable(),
 			'apiKey' => Expect::string()->nullable(),
 			'enabled' => Expect::bool(true),
+			// TLS ověření certifikátu monitoru pro standalone režim: true = ověřovat
+			// (default), false = vypnuto (jen dev), string = cesta k vlastnímu CA bundlu.
+			'verifyTls' => Expect::anyOf(Expect::bool(), Expect::string())->default(true),
 		]);
 	}
 
@@ -70,7 +73,7 @@ class LiquidMonitorLoggerDI extends \Nette\DI\CompilerExtension
 
 			$builder->addDefinition($this->prefix('errorReporter'))
 				->setType(ErrorReporter::class)
-				->addSetup('setConfiguration', [$config->url, $config->apiKey, $config->enabled]);
+				->addSetup('setConfiguration', [$config->url, $config->apiKey, $config->enabled, $config->verifyTls]);
 		}
 
 		if ($builder->hasDefinition('tracy.logger')) {

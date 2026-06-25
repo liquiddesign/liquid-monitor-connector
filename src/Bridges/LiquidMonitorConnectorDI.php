@@ -29,6 +29,17 @@ use Nette\Schema\Schema;
  *       log: # chyby/logy → nový monitor
  *           url: https://v2-monitor.example/api_connector
  *           apiKey: KEY_V2
+ *
+ * TLS ověření certifikátu monitoru je defaultně zapnuté (`verifyTls: true`). Vypnout
+ * (nebo nasměrovat na vlastní CA bundle) jde jen kvůli lokálnímu dev se self-signed
+ * certem — `verifyTls: false` otevírá MITM odposlech `apiKey`, takže na produkci
+ * nikdy. Preferovaný způsob pro self-signed dev cert je cesta k CA bundlu:
+ *
+ *   liquidMonitorConnector:
+ *       url: https://monitor.local/api_connector
+ *       apiKey: KEY
+ *       verifyTls: false # dev only! vypne ověření certifikátu
+ *       # verifyTls: /etc/ssl/certs/dev-ca.pem # lepší: ověřovat proti vlastní CA
  */
 class LiquidMonitorConnectorDI extends CompilerExtension
 {
@@ -38,6 +49,9 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 			'url' => Expect::string()->required(),
 			'apiKey' => Expect::string(null),
 			'enabled' => Expect::bool(true),
+			// TLS ověření certifikátu monitoru: true = ověřovat (default), false = vypnuto
+			// (jen dev se self-signed certem), string = cesta k vlastnímu CA bundlu.
+			'verifyTls' => Expect::anyOf(Expect::bool(), Expect::string())->default(true),
 			'cron' => $this->channelSchema(),
 			'log' => $this->channelSchema(),
 		]);
@@ -56,7 +70,7 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 		$builder = $this->getContainerBuilder();
 
 		$cron = $builder->addDefinition('liquidMonitorConnector')->setType(Cron::class);
-		$cron->addSetup('setConfiguration', [$cronUrl, $cronApiKey, $config->enabled, $logUrl, $logApiKey]);
+		$cron->addSetup('setConfiguration', [$cronUrl, $cronApiKey, $config->enabled, $logUrl, $logApiKey, $config->verifyTls]);
 
 		$builder->addDefinition('liquidMonitorConnector.getCronService')->setType(GetCronService::class);
 
@@ -64,7 +78,7 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 		// míří místo na `Cron`, takže ho lze provozovat i bez cronů (viz LiquidMonitorLoggerDI).
 		$builder->addDefinition('liquidMonitorConnector.errorReporter')
 			->setType(ErrorReporter::class)
-			->addSetup('setConfiguration', [$logUrl, $logApiKey, $config->enabled]);
+			->addSetup('setConfiguration', [$logUrl, $logApiKey, $config->enabled, $config->verifyTls]);
 	}
 
 	/**

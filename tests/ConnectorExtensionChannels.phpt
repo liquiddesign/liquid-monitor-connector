@@ -37,15 +37,16 @@ $configure = static function (array $rawConfig) use ($method): array {
 	Assert::fail('setConfiguration setup not found on liquidMonitorConnector definition');
 };
 
+// Poslední argument setConfiguration je verifyTls — defaultně true (ověřovat TLS cert).
 // --- Legacy config: jen url + apiKey → oba kanály spadnou na sdílenou hodnotu. ---
 Assert::same(
-	['https://v1/api_connector', 'KEY1', true, 'https://v1/api_connector', 'KEY1'],
+	['https://v1/api_connector', 'KEY1', true, 'https://v1/api_connector', 'KEY1', true],
 	$configure(['url' => 'https://v1/api_connector', 'apiKey' => 'KEY1']),
 );
 
 // --- Log override: crony na v1, chyby/logy na v2 (vlastní url i apiKey). ---
 Assert::same(
-	['https://v1/api_connector', 'KEY1', true, 'https://v2/api_connector', 'KEY2'],
+	['https://v1/api_connector', 'KEY1', true, 'https://v2/api_connector', 'KEY2', true],
 	$configure([
 		'url' => 'https://v1/api_connector',
 		'apiKey' => 'KEY1',
@@ -55,7 +56,7 @@ Assert::same(
 
 // --- Cron override: crony jinam, logy dědí ze sdílené hodnoty. ---
 Assert::same(
-	['https://cron-monitor/api_connector', 'CRON_KEY', true, 'https://shared/api_connector', 'SHARED_KEY'],
+	['https://cron-monitor/api_connector', 'CRON_KEY', true, 'https://shared/api_connector', 'SHARED_KEY', true],
 	$configure([
 		'url' => 'https://shared/api_connector',
 		'apiKey' => 'SHARED_KEY',
@@ -65,7 +66,7 @@ Assert::same(
 
 // --- Částečný override: log přepíše jen url, apiKey podědí ze sdílené hodnoty. ---
 Assert::same(
-	['https://shared/api_connector', 'SHARED_KEY', true, 'https://v2/api_connector', 'SHARED_KEY'],
+	['https://shared/api_connector', 'SHARED_KEY', true, 'https://v2/api_connector', 'SHARED_KEY', true],
 	$configure([
 		'url' => 'https://shared/api_connector',
 		'apiKey' => 'SHARED_KEY',
@@ -75,8 +76,20 @@ Assert::same(
 
 // --- enabled:false projde beze změny resoluce kanálů. ---
 Assert::same(
-	['https://v1/api_connector', 'KEY1', false, 'https://v1/api_connector', 'KEY1'],
+	['https://v1/api_connector', 'KEY1', false, 'https://v1/api_connector', 'KEY1', true],
 	$configure(['url' => 'https://v1/api_connector', 'apiKey' => 'KEY1', 'enabled' => false]),
+);
+
+// --- verifyTls override (dev se self-signed certem) doteče jako poslední argument. ---
+Assert::same(
+	['https://v1/api_connector', 'KEY1', true, 'https://v1/api_connector', 'KEY1', false],
+	$configure(['url' => 'https://v1/api_connector', 'apiKey' => 'KEY1', 'verifyTls' => false]),
+);
+
+// --- verifyTls jako cesta k vlastnímu CA bundlu projde stringem. ---
+Assert::same(
+	['https://v1/api_connector', 'KEY1', true, 'https://v1/api_connector', 'KEY1', '/etc/ssl/dev-ca.pem'],
+	$configure(['url' => 'https://v1/api_connector', 'apiKey' => 'KEY1', 'verifyTls' => '/etc/ssl/dev-ca.pem']),
 );
 
 echo "\nOK " . __FILE__ . "\n";
