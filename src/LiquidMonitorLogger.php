@@ -24,7 +24,7 @@ class LiquidMonitorLogger extends Logger
 	 */
 	private array $levels;
 
-	public function __construct(protected Request $request, protected Cron $cron, protected RequestFactory $requestFactory, private readonly User $user)
+	public function __construct(protected Request $request, protected ErrorReporter $errorReporter, protected RequestFactory $requestFactory, private readonly User $user)
 	{
 		parent::__construct(Debugger::$logDirectory, Debugger::$email, Debugger::getBlueScreen());
 	}
@@ -62,7 +62,7 @@ class LiquidMonitorLogger extends Logger
 
 	public function sendToLogger(string $message, string $level, string|null $data = null, string|int|null $code = null, bool $weak = false): void
 	{
-		$this->cron->log([
+		$this->errorReporter->log([
 			'url' => $this->request->getUrl(),
 			'message' => $message,
 			'data' => $data,
@@ -74,7 +74,7 @@ class LiquidMonitorLogger extends Logger
 			'memory_usage' => $this->getCurrentMemoryUsage(),
 			'code' => (string) $code,
 			'weak' => $weak,
-			'job_id' => $this->cron->getJobId(),
+			'job_id' => $this->errorReporter->getJobId(),
 			'identity' => $this->user->isLoggedIn() && ($identity = $this->user->getIdentity()) ?
 				Json::encode($identity instanceof Entity ? $identity->toArray() : (array) $identity) :
 				null,

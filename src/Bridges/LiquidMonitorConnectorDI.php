@@ -6,6 +6,7 @@ namespace LiquidMonitorConnector\Bridges;
 
 use LiquidMonitorConnector\Actions\GetCronService;
 use LiquidMonitorConnector\Cron;
+use LiquidMonitorConnector\ErrorReporter;
 use Nette\DI\CompilerExtension;
 use Nette\Schema\Expect;
 use Nette\Schema\Schema;
@@ -58,6 +59,12 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 		$cron->addSetup('setConfiguration', [$cronUrl, $cronApiKey, $config->enabled, $logUrl, $logApiKey]);
 
 		$builder->addDefinition('liquidMonitorConnector.getCronService')->setType(GetCronService::class);
+
+		// Chybový/logový kanál jako samostatná služba — `LiquidMonitorLogger` na ni
+		// míří místo na `Cron`, takže ho lze provozovat i bez cronů (viz LiquidMonitorLoggerDI).
+		$builder->addDefinition('liquidMonitorConnector.errorReporter')
+			->setType(ErrorReporter::class)
+			->addSetup('setConfiguration', [$logUrl, $logApiKey, $config->enabled]);
 	}
 
 	/**

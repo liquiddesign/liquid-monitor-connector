@@ -4,13 +4,33 @@ Connector mezi webem a Liquid Monitor.
 
 ## Components
 
-- **`Cron`** (`src/Cron.php`) — Nette DI integrace pro produkční reporting (schedule-job, error logging, health check).
+- **`Cron`** (`src/Cron.php`) — Nette DI integrace pro produkční reporting (schedule-job, error logging, health check). Registruje ji `LiquidMonitorConnectorDI`.
+- **`LiquidMonitorLoggerDI`** (`src/Bridges/LiquidMonitorLoggerDI.php`) — DI extension, která převezme Tracy logger (`LiquidMonitorLogger`) a posílá aplikační chyby na monitor přes samostatný `ErrorReporter` (`/log`). Funguje **i samostatně bez cronů** — viz [Jen sběr chyb (bez cronů)](#jen-sběr-chyb-bez-cronů).
 - **`orchestrator:run`** (`bin/orchestrator-run`) — autonomous programming worker. Pollne `/api/orchestrator/worker/poll`, v repo-mode pracuje přímo v repu (volitelně git worktree), spustí **tmux + interaktivní Claude Code REPL** (`send-keys`, `--resume`), doručí brief, parsuje JSON milníky, spustí `composer test` a zapíše `triage_result` zpět na monitor.
 - **`orchestrator-init`** (`bin/orchestrator-init`) — jednorázový setup hostu: vygeneruje `<repo>/.orchestrator/.env`, doplní `.orchestrator/` do `.gitignore` a ověří kredity proti monitoru.
 - **`LiquidMonitorLogViewerDI`** (`src/Bridges/LiquidMonitorLogViewerDI.php`) — DI extension, která vystaví read-only JSON API pro Tracy logy přímo z connectoru. Bundluje balíček [`liquiddesign/nette-log-viewer`](https://github.com/liquiddesign/nette-log-viewer) a registruje jeho routy/presentery, takže hostová aplikace nemusí balíček instalovat ani registrovat zvlášť. Viz [Log viewer](#log-viewer).
 - **`LiquidMonitorDbQueryDI`** (`src/Bridges/LiquidMonitorDbQueryDI.php`) — DI extension pro read-only SQL dotazy proti databázi host aplikace (PDO proxy pro monitor orchestrátor). Viz [DB query proxy](#db-query-proxy).
 
 Starý `bin/triage-pull` (read-only `claude -p`) je nahrazen orchestrátorem — nepoužívat.
+
+## Jen sběr chyb (bez cronů)
+
+Projekt nemusí napojovat crony — když chceš jen **sběr chyb** (např. jako vstup pro AI úkoly na monitoru), zaregistruj **samostatně** jen logger s vlastní `url` + `apiKey`:
+
+```neon
+extensions:
+    liquidMonitorLogger: LiquidMonitorConnector\Bridges\LiquidMonitorLoggerDI
+
+liquidMonitorLogger:
+    url: https://monitor.example/api_connector   # endpoint monitoru
+    apiKey: PROJECT_API_KEY                       # API key projektu (Nette SDK)
+    # enabled: true
+    # levels: [error, exception, critical, warning, info]   # filtr odesílaných úrovní
+```
+
+`LiquidMonitorLogger` převezme Tracy logger a chyby (ERROR/EXCEPTION/CRITICAL…) jdou na `/log`. **Cronová extension `liquidMonitorConnector` se neregistruje** a žádná služba `Cron` nevzniká.
+
+Když potřebuješ obojí (crony i chyby), zaregistruj `liquidMonitorConnector` **před** loggerem; logger pak reusuje jeho chybový kanál a vlastní `url`/`apiKey` na `liquidMonitorLogger` vynech (per-channel routing crony vs. chyby řeš bloky `cron:`/`log:` na `liquidMonitorConnector`). Vyžaduje konektor 2.6+.
 
 ## Log viewer
 
