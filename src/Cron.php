@@ -102,7 +102,7 @@ class Cron
 
 		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/is-running", [
 			'http_errors' => false,
-			'json' => ['apiKey' => $this->getApiKey()],
+			'query' => ['apiKey' => $this->getApiKey()],
 			'headers' => [Version::HEADER_NAME => Version::CURRENT],
 		]);
 
@@ -121,7 +121,7 @@ class Cron
 
 		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/last-job-log", [
 			'http_errors' => false,
-			'json' => ['apiKey' => $this->getApiKey()],
+			'query' => ['apiKey' => $this->getApiKey()],
 			'headers' => [Version::HEADER_NAME => Version::CURRENT],
 		]);
 		$content = $response->getBody()->getContents();
@@ -149,7 +149,7 @@ class Cron
 
 		$response = $client->get(Strings::before($this->getUrl(), 'connector') . 'front/cron/overview', [
 			'http_errors' => false,
-			'json' => ['apiKey' => $this->getApiKey()],
+			'query' => ['apiKey' => $this->getApiKey()],
 			'headers' => ['Accept' => 'application/json', Version::HEADER_NAME => Version::CURRENT],
 			'timeout' => 15,
 		]);
@@ -191,7 +191,7 @@ class Cron
 
 		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/joblogs-stats", [
 			'http_errors' => false,
-			'json' => ['apiKey' => $this->getApiKey()],
+			'query' => ['apiKey' => $this->getApiKey()],
 			'headers' => [Version::HEADER_NAME => Version::CURRENT],
 		]);
 		$content = $response->getBody()->getContents();
