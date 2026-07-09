@@ -78,6 +78,7 @@ class LiquidMonitorLogger extends Logger
 			'identity' => $this->user->isLoggedIn() && ($identity = $this->user->getIdentity()) ?
 				Json::encode($identity instanceof Entity ? $identity->toArray() : (array) $identity) :
 				null,
+			'connector_type' => 'nette',
 		], $level);
 	}
 
