@@ -1,0 +1,151 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+namespace LiquidMonitorConnector\Bin;
+
+use LiquidMonitorConnector\Worker\WorkerClient;
+use LiquidMonitorConnector\Worker\WorkerExecuteCommand;
+use LiquidMonitorConnector\Worker\WorkerRunCommand;
+use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Output\ConsoleOutput;
+
+$autoloadCandidates = [
+	__DIR__ . '/../vendor/autoload.php',
+	__DIR__ . '/../../../autoload.php',
+];
+
+$autoloadFound = false;
+
+foreach ($autoloadCandidates as $candidate) {
+	if (\is_file($candidate)) {
+		require $candidate;
+		$autoloadFound = true;
+
+		break;
+	}
+}
+
+if (!$autoloadFound) {
+	\fwrite(\STDERR, "monitor-worker: could not locate vendor/autoload.php\n");
+	exit(1);
+}
+
+$rawArgsForEnv = $_SERVER['argv'] ?? [];
+\assert(\is_array($rawArgsForEnv));
+$envFile = null;
+
+foreach ($rawArgsForEnv as $arg) {
+	if (\is_string($arg) && \str_starts_with($arg, '--env-file=')) {
+		$envFile = \substr($arg, \strlen('--env-file='));
+	}
+}
+
+if ($envFile !== null) {
+	if (!\is_file($envFile)) {
+		\fwrite(\STDERR, "monitor-worker: env file not found: {$envFile}\n");
+		exit(1);
+	}
+
+	(new \Symfony\Component\Dotenv\Dotenv())->load($envFile);
+} else {
+	$dotenvFile = \getcwd() !== false ? \getcwd() . '/.env' : null;
+
+	if ($dotenvFile !== null && \is_file($dotenvFile)) {
+		(new \Symfony\Component\Dotenv\Dotenv())->load($dotenvFile);
+	}
+}
+
+$envOr = static function (string $name, string $default = ''): string {
+	$value = \getenv($name);
+
+	if ($value !== false && $value !== '') {
+		return $value;
+	}
+
+	$fromSuperglobal = $_ENV[$name] ?? $_SERVER[$name] ?? null;
+
+	if (\is_string($fromSuperglobal) && $fromSuperglobal !== '') {
+		return $fromSuperglobal;
+	}
+
+	return $default;
+};
+
+$rawArgs = $_SERVER['argv'] ?? [];
+\assert(\is_array($rawArgs));
+$scriptName = \array_shift($rawArgs);
+$scriptName = \is_string($scriptName) ? $scriptName : 'monitor-worker';
+
+$opts = [
+	'monitor-url' => $envOr('MONITOR_URL', ''),
+	'api-key' => $envOr('MONITOR_API_KEY', $envOr('API_KEY', '')),
+];
+
+$forward = [];
+$commandName = null;
+
+foreach ($rawArgs as $arg) {
+	if (\str_starts_with($arg, '--')) {
+		$eq = \strpos($arg, '=');
+
+		if ($eq !== false) {
+			$name = \substr($arg, 2, $eq - 2);
+			$value = \substr($arg, $eq + 1);
+		} else {
+			$name = \substr($arg, 2);
+			$value = null;
+		}
+
+		if ($name === 'env-file') {
+			continue;
+		}
+
+		if (\array_key_exists($name, $opts)) {
+			if ($value === null) {
+				\fwrite(\STDERR, "monitor-worker: --{$name} requires a value\n");
+				exit(1);
+			}
+
+			$opts[$name] = $value;
+
+			continue;
+		}
+	}
+
+	if ($commandName === null && \is_string($arg) && !\str_starts_with($arg, '-')) {
+		$commandName = $arg;
+
+		continue;
+	}
+
+	$forward[] = $arg;
+}
+
+$wantsHelp = \in_array('--help', $rawArgs, true) || \in_array('-h', $rawArgs, true);
+
+if (!$wantsHelp && $commandName !== 'execute' && ($opts['monitor-url'] === '' || $opts['api-key'] === '')) {
+	\fwrite(\STDERR, "monitor-worker: --monitor-url and --api-key are required for run (or set MONITOR_URL/MONITOR_API_KEY)\n");
+	exit(1);
+}
+
+$workerScript = __DIR__ . '/monitor-worker';
+$client = new WorkerClient(
+	$opts['monitor-url'] !== '' ? $opts['monitor-url'] : 'http://invalid.local',
+	$opts['api-key'],
+);
+
+$app = new Application('monitor-worker', '1.0.0');
+$app->addCommand(new WorkerRunCommand($client, $workerScript));
+$app->addCommand(new WorkerExecuteCommand());
+
+if ($commandName === null) {
+	$app->setDefaultCommand('run', true);
+	\array_unshift($forward, $scriptName);
+} else {
+	\array_unshift($forward, $scriptName, $commandName);
+}
+
+exit($app->run(new ArgvInput($forward), new ConsoleOutput()));

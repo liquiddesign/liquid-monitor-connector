@@ -10,7 +10,8 @@
     "bin": [
         "bin/orchestrator-run",
         "bin/orchestrator-guard",
-        "bin/orchestrator-init"
+        "bin/orchestrator-init",
+        "bin/monitor-worker"
     ],
     "require": {
         "php": ">=8.1",
@@ -68,7 +69,8 @@
     "extra": {
         "branch-alias": {
             "dev-main": "2.x-dev",
-            "dev-1.x": "1.x-dev"
+            "dev-1.x": "1.x-dev",
+            "dev-3.x": "3.x-dev"
         }
     }
 }

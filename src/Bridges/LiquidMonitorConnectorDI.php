@@ -7,6 +7,8 @@ namespace LiquidMonitorConnector\Bridges;
 use LiquidMonitorConnector\Actions\GetCronService;
 use LiquidMonitorConnector\Cron;
 use LiquidMonitorConnector\ErrorReporter;
+use LiquidMonitorConnector\Worker\CronJobHandlerRegistry;
+use LiquidMonitorConnector\Worker\WorkerHandlerDiscovery;
 use Nette\DI\CompilerExtension;
 use Nette\Schema\Expect;
 use Nette\Schema\Schema;
@@ -15,7 +17,7 @@ use Nette\Schema\Schema;
  * Registrace v host aplikaci:
  *
  *   liquidMonitorConnector:
- *       url: https://monitor.example/api_connector # sdílený fallback (povinné)
+ *       url: https://monitor.example/api/connector # sdílený fallback (povinné)
  *       apiKey: SHARED_KEY
  *       enabled: true
  *
@@ -24,10 +26,10 @@ use Nette\Schema\Schema;
  * vynechá, dědí z top-level `url`/`apiKey`:
  *
  *   liquidMonitorConnector:
- *       url: https://v1-monitor.example/api_connector # crony → starý monitor
+ *       url: https://v1-monitor.example/api/connector # crony → starý monitor
  *       apiKey: KEY_V1
  *       log: # chyby/logy → nový monitor
- *           url: https://v2-monitor.example/api_connector
+ *           url: https://v2-monitor.example/api/connector
  *           apiKey: KEY_V2
  *
  * TLS ověření certifikátu monitoru je defaultně zapnuté (`verifyTls: true`). Vypnout
@@ -36,10 +38,19 @@ use Nette\Schema\Schema;
  * nikdy. Preferovaný způsob pro self-signed dev cert je cesta k CA bundlu:
  *
  *   liquidMonitorConnector:
- *       url: https://monitor.local/api_connector
+ *       url: https://monitor.local/api/connector
  *       apiKey: KEY
  *       verifyTls: false # dev only! vypne ověření certifikátu
  *       # verifyTls: /etc/ssl/certs/dev-ca.pem # lepší: ověřovat proti vlastní CA
+ *
+ * Pull-model cron worker (`bin/monitor-worker`) resolves handlers from:
+ *
+ *       workerHandlers: auto
+ *
+ * or explicit map:
+ *
+ *       workerHandlers:
+ *           import: @App\Cron\ImportHandler
  */
 class LiquidMonitorConnectorDI extends CompilerExtension
 {
@@ -54,6 +65,10 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 			'verifyTls' => Expect::anyOf(Expect::bool(), Expect::string())->default(true),
 			'cron' => $this->channelSchema(),
 			'log' => $this->channelSchema(),
+			'workerHandlers' => Expect::anyOf(
+				Expect::string('auto'),
+				Expect::arrayOf(Expect::string()),
+			)->default([]),
 		]);
 	}
 
@@ -79,6 +94,29 @@ class LiquidMonitorConnectorDI extends CompilerExtension
 		$builder->addDefinition('liquidMonitorConnector.errorReporter')
 			->setType(ErrorReporter::class)
 			->addSetup('setConfiguration', [$logUrl, $logApiKey, $config->enabled, $config->verifyTls]);
+	}
+
+	public function beforeCompile(): void
+	{
+		if (!\class_exists(CronJobHandlerRegistry::class)) {
+			return;
+		}
+
+		/** @var \stdClass $config */
+		$config = $this->getConfig();
+		$handlers = WorkerHandlerDiscovery::resolve($this->getContainerBuilder(), $config->workerHandlers);
+
+		if ($handlers === []) {
+			return;
+		}
+
+		$builder = $this->getContainerBuilder();
+
+		$builder->addDefinition('liquidMonitorConnector.workerHandlerRegistry')
+			->setType(CronJobHandlerRegistry::class)
+			->setFactory(CronJobHandlerRegistry::class, ['handlers' => $handlers]);
+
+		$builder->addAlias(CronJobHandlerRegistry::class, 'liquidMonitorConnector.workerHandlerRegistry');
 	}
 
 	/**

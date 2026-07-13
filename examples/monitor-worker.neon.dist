@@ -1,0 +1,24 @@
+# Pull-model monitor worker — minimal NEON checklist (connector 3.x)
+#
+# 1. composer require liquiddesign/liquid-monitor-connector ^3.0@alpha
+# 2. search: path to *Handler.php implementing CronJobHandler
+# 3. liquidMonitorConnector.workerHandlers: auto
+# 4. Crunz: tasks/MonitorWorkerTasks.php → one-line require of connector crunz/MonitorWorkerTasks.php
+# 5. LQDeck admin: cron execution mode → Pull
+#
+# See connector README § Pull-model cron worker.
+
+extensions:
+    liquidMonitorConnector: LiquidMonitorConnector\Bridges\LiquidMonitorConnectorDI
+
+liquidMonitorConnector:
+    url: https://lqdeck.example/api/connector
+    apiKey: # from LQDeck project detail
+    enabled: true
+    workerHandlers: auto
+
+search:
+    monitorCronHandlers:
+        in: %appDir%/Cron
+        files: [*Handler.php]
+        implements: LiquidMonitorConnector\Worker\CronJobHandler

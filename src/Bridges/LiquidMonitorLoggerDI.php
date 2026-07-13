@@ -30,7 +30,7 @@ use Tracy\ILogger;
  *          liquidMonitorLogger: LiquidMonitorConnector\Bridges\LiquidMonitorLoggerDI
  *
  *      liquidMonitorLogger:
- *          url: https://monitor.example/api_connector
+ *          url: https://monitor.example/api/connector
  *          apiKey: PROJECT_API_KEY
  */
 class LiquidMonitorLoggerDI extends \Nette\DI\CompilerExtension

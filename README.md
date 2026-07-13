@@ -2,11 +2,15 @@
 
 Connector mezi webem a Liquid Monitor.
 
+**Aktuální verze:** `3.0.0-alpha` (major 3 — pull-model cron worker; push crony zůstávají kompatibilní s v2 API).
+
 ## Components
 
 - **`Cron`** (`src/Cron.php`) — Nette DI integrace pro produkční reporting (schedule-job, error logging, health check). Registruje ji `LiquidMonitorConnectorDI`.
 - **`LiquidMonitorLoggerDI`** (`src/Bridges/LiquidMonitorLoggerDI.php`) — DI extension, která převezme Tracy logger (`LiquidMonitorLogger`) a posílá aplikační chyby na monitor přes samostatný `ErrorReporter` (`/log`). Funguje **i samostatně bez cronů** — viz [Jen sběr chyb (bez cronů)](#jen-sběr-chyb-bez-cronů).
 - **`orchestrator:run`** (`bin/orchestrator-run`) — autonomous programming worker. Pollne `/api/orchestrator/worker/poll`, v repo-mode pracuje přímo v repu (volitelně git worktree), spustí **tmux + interaktivní Claude Code REPL** (`send-keys`, `--resume`), doručí brief, parsuje JSON milníky, spustí `composer test` a zapíše `triage_result` zpět na monitor.
+- **`monitor-worker`** (`bin/monitor-worker`) — pull-model cron worker (connector **3.x**). Claimuje joby z monitoru (`…/api/connector/claim-jobs`), spouští registrované handlery v child procesech a reportuje `finish-job` / `fail-job` / `heartbeat-job`. Viz [Pull-model cron worker](#pull-model-cron-worker).
+- **`MonitorWorkerBootstrap`** / **`MonitorWorkerLauncher`** — univerzální Nette bootstrap (`bin/monitor-worker-nette-bootstrap.php`) a Crunz glue (`crunz/MonitorWorkerTasks.php`); host projekt nepotřebuje vlastní bootstrap.
 - **`orchestrator-init`** (`bin/orchestrator-init`) — jednorázový setup hostu: vygeneruje `<repo>/.orchestrator/.env`, doplní `.orchestrator/` do `.gitignore` a ověří kredity proti monitoru.
 - **`LiquidMonitorLogViewerDI`** (`src/Bridges/LiquidMonitorLogViewerDI.php`) — DI extension, která vystaví read-only JSON API pro Tracy logy přímo z connectoru. Bundluje balíček [`liquiddesign/nette-log-viewer`](https://github.com/liquiddesign/nette-log-viewer) a registruje jeho routy/presentery, takže hostová aplikace nemusí balíček instalovat ani registrovat zvlášť. Viz [Log viewer](#log-viewer).
 - **`LiquidMonitorDbQueryDI`** (`src/Bridges/LiquidMonitorDbQueryDI.php`) — DI extension pro read-only SQL dotazy proti databázi host aplikace (PDO proxy pro monitor orchestrátor). Viz [DB query proxy](#db-query-proxy).
@@ -22,7 +26,7 @@ extensions:
     liquidMonitorLogger: LiquidMonitorConnector\Bridges\LiquidMonitorLoggerDI
 
 liquidMonitorLogger:
-    url: https://monitor.example/api_connector   # endpoint monitoru
+    url: https://monitor.example/api/connector   # endpoint monitoru (LQDeck: /api/connector)
     apiKey: PROJECT_API_KEY                       # API key projektu (Nette SDK)
     # enabled: true
     # levels: [error, exception, critical, warning, info]   # filtr odesílaných úrovní
@@ -102,6 +106,77 @@ liquidMonitorDbQuery:
 3. **Volitelný `apiToken`** — pokud je nastaven v NEON, navíc vyžaduje shodný `X-Api-Key` header (`hash_equals`). Defaultně vypnutý.
 
 **Odpovědi:** úspěch `200` s flat JSON (bez vnořeného `data`); chyby `{ "error": "…", "code": 400|403|422|500 }`.
+
+## Pull-model cron worker
+
+Pro projekty s `job_execution_mode: pull` na monitoru spouštěj crony přes `bin/monitor-worker` místo HTTP push na presenter URL.
+
+### Minimální instalace (Nette)
+
+**1. NEON — connector + auto-discovery handlerů**
+
+```neon
+extensions:
+    liquidMonitorConnector: LiquidMonitorConnector\Bridges\LiquidMonitorConnectorDI
+
+liquidMonitorConnector:
+    url: https://monitor.example/api/connector
+    apiKey: PROJECT_KEY
+    workerHandlers: auto
+
+search:
+    monitorCronHandlers:
+        in: %appDir%/Cron
+        files: [*Handler.php]
+        implements: LiquidMonitorConnector\Worker\CronJobHandler
+```
+
+`workerHandlers: auto` zaregistruje všechny služby implementující `CronJobHandler` podle konvence názvu (`ImportHandler` → cron code `import`). Explicitní mapa je pořád možná místo `auto`.
+
+**2. Scheduler** — Crunz (doporučeno) nebo systemd / cron.
+
+*Crunz* — jeden řádek v host `tasks/MonitorWorkerTasks.php`:
+
+```php
+<?php declare(strict_types=1);
+return require dirname(__DIR__) . '/vendor/liquiddesign/liquid-monitor-connector/crunz/MonitorWorkerTasks.php';
+```
+
+Logika (každou minutu, `MonitorWorkerLauncher`, URL + API klíč z NEON) je v connectoru. Vlastní bootstrap v host projektu **není potřeba** — použije se `bin/monitor-worker-nette-bootstrap.php` z balíčku (`App\Bootstrap` default, override přes `NETTE_BOOTSTRAP_CLASS` v `.env`).
+
+*Přímo CLI* (bez Crunz wrapperu):
+
+```cron
+* * * * * php vendor/bin/monitor-worker run \
+  --bootstrap=vendor/liquiddesign/liquid-monitor-connector/bin/monitor-worker-nette-bootstrap.php \
+  --monitor-url=https://monitor.example/api/connector \
+  --api-key=PROJECT_KEY \
+  --max-runtime=55
+```
+
+**3. Handler** — jedna třída v `app/Cron/`, cron code v LQDeck = `lcfirst` název bez přípony `Handler`.
+
+**4. LQDeck admin** — u cronu nastav `Execution mode: Pull` (až po nasazení workeru). Vypni starý HTTP Crunz trigger pro stejný cron.
+
+**5. Nette bootstrap class** — default `App\Bootstrap`; jiná třída přes `NETTE_BOOTSTRAP_CLASS` v `.env`.
+
+Ukázková NEON konfigurace: `examples/monitor-worker.neon.dist`.
+
+### Co zůstává v host projektu
+
+| V projektu | V connectoru |
+|---|---|
+| `*Handler.php` (business logika) | `bin/monitor-worker`, claim/heartbeat client |
+| `search` cesta ke handlerům | `CronJobHandler`, auto-discovery, universal bootstrap |
+| 1řádkový Crunz require (nebo cron CLI) | `crunz/MonitorWorkerTasks.php`, `MonitorWorkerLauncher` |
+
+### Legacy: ruční mapování handlerů
+
+```neon
+liquidMonitorConnector:
+    workerHandlers:
+        import: @App\Cron\ImportHandler
+```
 
 ## Orchestrator worker setup
 
