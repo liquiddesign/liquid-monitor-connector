@@ -140,18 +140,19 @@ class Cron
 	}
 
 	/**
-	 * Get overview of all project crons together with their last-24h job log statistics
+	 * Get overview of all project crons together with their last-N-hours job log statistics
 	 * in a single HTTP request (replaces N+1 calls to /front/cron + /front/cron/{code}/joblogs-stats).
+	 * @param int $hours How many hours back to aggregate job log stats. Defaults to 24, capped server-side at 168.
 	 * @return array<int, array<string, mixed>>|null
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function getCronOverview(): array|null
+	public function getCronOverview(int $hours = 24): array|null
 	{
 		$client = new Client();
 
 		$response = $client->get(Strings::before($this->getUrl(), 'connector') . 'front/cron/overview', [
 			'http_errors' => false,
-			'query' => ['apiKey' => $this->getApiKey()],
+			'query' => ['apiKey' => $this->getApiKey(), 'hours' => $hours],
 			'headers' => ['Accept' => 'application/json', Version::HEADER_NAME => Version::CURRENT],
 			'timeout' => 15,
 		]);
@@ -171,8 +172,9 @@ class Cron
 	}
 
 	/**
-	 * Get cron job logs statistics for the last 24 hours
+	 * Get cron job logs statistics for the last N hours (default 24)
 	 * @param string $cronCode
+	 * @param int $hours How many hours back to aggregate. Defaults to 24, capped server-side at 168.
 	 * @return array{
 	 *     cronCode: string,
 	 *     cronName: string|null,
@@ -187,13 +189,13 @@ class Cron
 	 * }|null
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 */
-	public function getCronJobLogsStats(string $cronCode): array|null
+	public function getCronJobLogsStats(string $cronCode, int $hours = 24): array|null
 	{
 		$client = new Client();
 
 		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/joblogs-stats", [
 			'http_errors' => false,
-			'query' => ['apiKey' => $this->getApiKey()],
+			'query' => ['apiKey' => $this->getApiKey(), 'hours' => $hours],
 			'headers' => [Version::HEADER_NAME => Version::CURRENT],
 		]);
 		$content = $response->getBody()->getContents();
