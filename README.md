@@ -162,6 +162,42 @@ Logika (každou minutu, `MonitorWorkerLauncher`, URL + API klíč z NEON) je v c
 
 Ukázková NEON konfigurace: `examples/monitor-worker.neon.dist`.
 
+### Code-managed pull crony (`#[PullCron]`)
+
+Cron nemusí existovat na monitoru předem — stačí handler s `#[PullCron]` atributem a jedno volání
+`$cron->schedulePullJob()`. Kód je zdroj pravdy: `name`, `description`, `repeatCount`,
+`concurrencyMode`, `timeout` a `maxQueueSize` se z atributu synchronizují do monitoru při každém
+volání; `active` zůstává admin-only kill switch a nesynchronizuje se.
+
+```php
+use LiquidMonitorConnector\Worker\ConcurrencyModeType;
+use LiquidMonitorConnector\Worker\PullCron;
+
+#[PullCron(
+    schedule: '*/5 * * * *',
+    concurrencyMode: ConcurrencyModeType::Independent,
+    timeout: 300,
+)]
+final class UpdateCkpFloatingPricesHandler implements CronJobHandler
+{
+    // ...
+}
+```
+
+Crunz task, který jen naplánuje job (žádná ruční registrace cronu v adminu):
+
+```php
+<?php declare(strict_types=1);
+
+/** @var Crunz\Schedule\Schedule $schedule */
+$schedule->run(static function () use ($cron): void {
+    $cron->schedulePullJob(UpdateCkpFloatingPricesHandler::class);
+})->everyFiveMinutes();
+```
+
+Handler se pak zaregistruje běžně (`workerHandlers: auto` / cron code `updateCkpFloatingPrices`) a
+`bin/monitor-worker` ho claimuje a spouští stejně jako ostatní pull crony.
+
 ### Co zůstává v host projektu
 
 | V projektu | V connectoru |

@@ -7,6 +7,8 @@ namespace LiquidMonitorConnector;
 use GuzzleHttp\Client;
 use LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException;
 use LiquidMonitorConnector\Tasks\ExceptionToJsonArray;
+use LiquidMonitorConnector\Worker\CronJobHandlerCode;
+use LiquidMonitorConnector\Worker\PullCron;
 use Nette\Http\Request;
 use Nette\Utils\Arrays;
 use Nette\Utils\Json;
@@ -296,6 +298,53 @@ class Cron
 	}
 
 	/**
+	 * Schedule a code-managed pull-model job: `$handlerClass` must carry a
+	 * `#[PullCron]` attribute, which is the source of truth for the cron's
+	 * metadata (name, description, repeatCount, concurrencyMode, timeout,
+	 * maxQueueSize, timing) and is synced into the monitor on every call.
+	 * Unlike {@see scheduleJob()}, no `cronUrl` and no client-side execution
+	 * `timeout` are sent — pull crons have no push URL, and the only timeout
+	 * that matters is the one declared on the attribute (`cronTimeout`).
+	 * @param class-string $handlerClass
+	 * @param array<mixed>|null $arguments
+	 * @throws \GuzzleHttp\Exception\GuzzleException
+	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
+	 * @throws \InvalidArgumentException When $handlerClass has no #[PullCron] attribute.
+	 */
+	public function schedulePullJob(string $handlerClass, array|null $arguments = null): void
+	{
+		$reflection = new \ReflectionClass($handlerClass);
+		$attributes = $reflection->getAttributes(PullCron::class);
+
+		if ($attributes === []) {
+			throw new \InvalidArgumentException(\sprintf(
+				'Cron job handler class "%s" is missing the #[PullCron] attribute required by schedulePullJob().',
+				$handlerClass,
+			));
+		}
+
+		$pullCron = $attributes[0]->newInstance();
+		$cronId = CronJobHandlerCode::fromClassName($handlerClass);
+
+		$params = [
+			'cronId' => $cronId,
+			'executionMode' => 'pull',
+			'cronTiming' => $pullCron->schedule,
+			'cronName' => $pullCron->name,
+			'cronRepeatCount' => $pullCron->repeatCount,
+			'cronConcurrencyMode' => $pullCron->concurrencyMode?->value,
+			'cronDescription' => $pullCron->description,
+			'cronTimeout' => $pullCron->timeout,
+			'cronMaxQueueSize' => $pullCron->maxQueueSize,
+			'createIfNotExists' => true,
+			'arguments' => $arguments,
+		];
+		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $this->getApiKey(), $params, true);
+
+		Debugger::log("Pull cron job scheduled: $cronId", 'cron-schedule');
+	}
+
+	/**
 	 * @param array<mixed>|null $arguments
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
@@ -503,7 +552,7 @@ class Cron
 	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
 	 * @throws \Exception
 	 */
-	private function send(string $url, string|null $apiKey, array $params, bool $throw = false): void
+	protected function send(string $url, string|null $apiKey, array $params, bool $throw = false): void
 	{
 		(new MonitorHttpClient($this->verifyTls))->post($url, $apiKey, $this->isEnabled(), ['jobId' => $this->getJobId()] + $params, $throw);
 	}
