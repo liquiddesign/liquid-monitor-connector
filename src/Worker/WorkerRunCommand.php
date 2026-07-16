@@ -103,7 +103,7 @@ final class WorkerRunCommand extends Command
 			$command[] = '--arguments=' . \json_encode($job->arguments, \JSON_THROW_ON_ERROR);
 		}
 
-		return new Process(
+		$process = new Process(
 			$command,
 			cwd: \getcwd() ?: null,
 			env: [
@@ -114,5 +114,15 @@ final class WorkerRunCommand extends Command
 				WorkerExecuteCommand::ENV_TIMEOUT => (string) $job->timeout,
 			],
 		);
+
+		// Job timeout is also passed to child via --timeout for set_time_limit().
+		// Symfony Process defaults to 60s — must honor job timeout or disable.
+		if ($job->timeout > 0) {
+			$process->setTimeout((float) $job->timeout);
+		} else {
+			$process->setTimeout(null);
+		}
+
+		return $process;
 	}
 }
