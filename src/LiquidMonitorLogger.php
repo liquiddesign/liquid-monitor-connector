@@ -108,7 +108,15 @@ class LiquidMonitorLogger extends Logger
 				'trace' => $trace,
 			];
 
-			$message = (string) Arrays::first($message);
+			$first = Arrays::first($message);
+
+			try {
+				$message = \is_scalar($first) || $first === null || $first instanceof \Stringable
+					? (string) $first
+					: Json::encode($first);
+			} catch (\Exception) {
+				$message = \gettype($first);
+			}
 		} else {
 			$trace = \debug_backtrace(\DEBUG_BACKTRACE_IGNORE_ARGS);
 
