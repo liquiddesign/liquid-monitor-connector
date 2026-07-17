@@ -8,6 +8,7 @@ use Nette\Utils\Json;
 use Nette\Utils\JsonException;
 use Nette\Utils\Strings;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 /**
@@ -109,7 +110,23 @@ final class WorkerRunLoop
 			$process = $entry['process'];
 
 			if ($process->isRunning()) {
-				continue;
+				try {
+					$process->checkTimeout();
+
+					continue;
+				} catch (ProcessTimedOutException $e) {
+					// checkTimeout() stopped the process; report the reason explicitly —
+					// the generic exit-code branch below would report an empty/confusing error.
+					try {
+						$this->client->failJob($jobId, ['error' => $e->getMessage(), 'cronCode' => $entry['job']->cronCode]);
+					} catch (\Throwable $reportException) {
+						$this->writeln('<error>Reporting job ' . $jobId . ' failed: ' . $reportException->getMessage() . '</error>');
+					}
+
+					unset($running[$jobId]);
+
+					continue;
+				}
 			}
 
 			$job = $entry['job'];
@@ -165,18 +182,15 @@ final class WorkerRunLoop
 	 */
 	private function waitForRunning(array &$running): void
 	{
+		// Poll instead of Process::wait() — blocking wait() suppressed heartbeats for
+		// children running longer than the lease, so the monitor expired the job and
+		// requeued it even though the child later finished fine (finish-job → 404).
 		while ($running !== []) {
-			foreach ($running as $entry) {
-				if ($entry['process']->isRunning()) {
-					$entry['process']->wait();
-				}
-			}
-
 			$this->collectExited($running);
 			$this->heartbeatRunning($running);
 
 			if ($running === []) {
-				continue;
+				break;
 			}
 
 			\sleep(1);
