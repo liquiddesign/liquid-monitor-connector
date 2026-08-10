@@ -73,6 +73,17 @@ Assert::true($cron->lastParams['createIfNotExists']);
 Assert::same(['userId' => 7], $cron->lastParams['arguments']);
 Assert::false(\array_key_exists('cronUrl', $cron->lastParams));
 Assert::false(\array_key_exists('timeout', $cron->lastParams));
+// No delay asked for: the monitor must read this as "runnable now", not as a zero-second delay.
+Assert::null($cron->lastParams['delaySeconds']);
+
+// --- A delay is forwarded so the monitor can hold the job back (retry after an outage). ---
+$cron = $makeCron();
+$cron->setConfiguration('https://v1/api_connector', 'KEY1', true);
+$cron->schedulePullJob(UpdateCkpFloatingPricesHandler::class, ['qiRetryAttempt' => 1], delaySeconds: 1800);
+
+Assert::notNull($cron->lastParams);
+Assert::same(1800, $cron->lastParams['delaySeconds']);
+Assert::same(['qiRetryAttempt' => 1], $cron->lastParams['arguments']);
 
 // --- Missing #[PullCron] attribute throws before any HTTP call is attempted. ---
 $cron = $makeCron();

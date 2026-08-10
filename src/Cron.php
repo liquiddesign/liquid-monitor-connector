@@ -309,11 +309,16 @@ class Cron
 	 * that matters is the one declared on the attribute (`cronTimeout`).
 	 * @param class-string $handlerClass
 	 * @param array<mixed>|null $arguments
+	 * @param int|null $delaySeconds When > 0, the monitor holds the job in the queue for this many
+	 *   seconds before any worker may claim it (`cron_jobs.available_at`). Use it to retry a cron
+	 *   whose remote system is temporarily down — without it the retry job is claimed by the very
+	 *   next worker poll, seconds after the outage that caused it. Monitor-side cap is one day;
+	 *   a monitor deployed before this parameter existed ignores it and runs the job immediately.
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
 	 * @throws \InvalidArgumentException When $handlerClass has no #[PullCron] attribute.
 	 */
-	public function schedulePullJob(string $handlerClass, array|null $arguments = null): void
+	public function schedulePullJob(string $handlerClass, array|null $arguments = null, int|null $delaySeconds = null): void
 	{
 		$reflection = new \ReflectionClass($handlerClass);
 		$attributes = $reflection->getAttributes(PullCron::class);
@@ -340,14 +345,22 @@ class Cron
 			'cronMaxQueueSize' => $pullCron->maxQueueSize,
 			'createIfNotExists' => true,
 			'arguments' => $arguments,
+			'delaySeconds' => $delaySeconds,
 		];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $this->getApiKey(), $params, true);
 
-		Debugger::log("Pull cron job scheduled: $cronId", 'cron-schedule');
+		Debugger::log(
+			$delaySeconds !== null && $delaySeconds > 0
+				? "Pull cron job scheduled: $cronId (delayed by {$delaySeconds}s)"
+				: "Pull cron job scheduled: $cronId",
+			'cron-schedule',
+		);
 	}
 
 	/**
 	 * @param array<mixed>|null $arguments
+	 * @param int|null $delaySeconds When > 0, the job waits this many seconds in the queue before it
+	 *   may run — see {@see schedulePullJob()}.
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
 	 */
@@ -361,6 +374,7 @@ class Cron
 		int|null $cronTimeout = null,
 		bool $createIfNotExists = true,
 		array|null $arguments = null,
+		int|null $delaySeconds = null,
 	): void {
 		$params = [
 			'cronId' => $cronId,
@@ -374,6 +388,7 @@ class Cron
 			'cronTimeout' => $cronTimeout,
 			'createIfNotExists' => $createIfNotExists,
 			'arguments' => $arguments,
+			'delaySeconds' => $delaySeconds,
 		];
 		$this->send($this->getUrl() . self::JOB_SCHEDULE_ENDPOINT, $this->getApiKey(), $params, true);
 
