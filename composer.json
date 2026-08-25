@@ -20,7 +20,7 @@
         "nette/security": "^3.0",
         "tracy/tracy": "^2.0",
         "nette/di": "~3.0",
-        "guzzlehttp/guzzle": "^7.0",
+        "guzzlehttp/guzzle": "^7.0 || ^8.0",
         "nesbot/carbon": "^2.0 || ^3.0",
         "liquiddesign/base": "^2.0.33",
         "liquiddesign/nette-log-viewer": "^1.2",
