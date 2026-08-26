@@ -11,7 +11,7 @@ namespace LiquidMonitorConnector;
  */
 final class Version
 {
-	public const CURRENT = '3.0.0-alpha';
+	public const CURRENT = '3.0.6';
 
 	public const HEADER_NAME = 'X-Connector-Version';
 
