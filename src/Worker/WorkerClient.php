@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace LiquidMonitorConnector\Worker;
 
 use GuzzleHttp\Client;
-use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\Psr7\Response;
 use LiquidMonitorConnector\Version;
 use Nette\Utils\Json;
@@ -129,7 +128,7 @@ final class WorkerClient implements WorkerClientContract
 				}
 
 				return $response;
-			} catch (ConnectException | RequestException $e) {
+			} catch (TransferException $e) {
 				$lastException = $e;
 
 				if ($attempts >= $maxAttempts) {
