@@ -6,56 +6,69 @@ use LiquidMonitorConnector\Worker\ClaimedJob;
 use LiquidMonitorConnector\Worker\ClaimJobsResult;
 use LiquidMonitorConnector\Worker\WorkerClientContract;
 use LiquidMonitorConnector\Worker\WorkerRunLoop;
+use Symfony\Component\Process\Process;
 use Tester\Assert;
 
 require __DIR__ . '/../vendor/autoload.php';
 
 Tester\Environment::setup();
 
-final class FakeChildProcess
+// WorkerRunLoop declares `$spawnChild` as returning a Symfony Process and parseChildResult()
+// type-hints it natively, so this double has to BE a Process — a look-alike makes finishJob()
+// throw a TypeError that the loop's broad `catch (\Throwable)` around reporting swallows into
+// writeln(), silently losing the finish report. Extending Process honours that contract while
+// keeping the test deterministic (no real subprocess).
+//
+// It models a child that has already exited by the time the loop looks at it, so isRunning() is
+// always false — which is also what a real Process reports before start(). Do NOT make it true
+// before start(): Process::__construct() calls setInput(), which asks isRunning() and throws
+// "Input cannot be set while the process is running" on an overridden true.
+final class FakeChildProcess extends Process
 {
-	private bool $running = true;
-
 	public function __construct(
-		private readonly int $exitCode,
-		private readonly string $stdout = '',
-		private readonly string $stderr = '',
+		private readonly int $fakeExitCode,
+		private readonly string $fakeStdout = '',
+		private readonly string $fakeStderr = '',
 	) {
+		parent::__construct(['true']);
 	}
 
-	public function start(): void
+	public function start(?callable $callback = null, array $env = []): void
 	{
-		$this->running = false;
 	}
 
 	public function isRunning(): bool
 	{
-		return $this->running;
+		return false;
 	}
 
 	public function isSuccessful(): bool
 	{
-		return $this->exitCode === 0;
+		return $this->fakeExitCode === 0;
 	}
 
-	public function getExitCode(): int
+	public function getExitCode(): ?int
 	{
-		return $this->exitCode;
+		return $this->fakeExitCode;
 	}
 
 	public function getOutput(): string
 	{
-		return $this->stdout;
+		return $this->fakeStdout;
 	}
 
 	public function getErrorOutput(): string
 	{
-		return $this->stderr;
+		return $this->fakeStderr;
 	}
 
-	public function wait(): void
+	public function wait(?callable $callback = null): int
 	{
-		$this->running = false;
+		return $this->fakeExitCode;
+	}
+
+	public function checkTimeout(): void
+	{
 	}
 }
 
@@ -138,7 +151,7 @@ $loop = new WorkerRunLoop(
 	maxRuntime: 5,
 	leaseSeconds: 4,
 	once: true,
-	spawnChild: static function (ClaimedJob $job): FakeChildProcess {
+	spawnChild: static function (ClaimedJob $job): Process {
 		if ($job->jobId === 1) {
 			return new FakeChildProcess(0, '{"status":"ok"}');
 		}
@@ -173,7 +186,7 @@ $capacityLoop = new WorkerRunLoop(
 	maxRuntime: 3,
 	leaseSeconds: 60,
 	once: false,
-	spawnChild: static fn (ClaimedJob $job): FakeChildProcess => new FakeChildProcess(0, \json_encode(['jobId' => $job->jobId], \JSON_THROW_ON_ERROR)),
+	spawnChild: static fn (ClaimedJob $job): Process => new FakeChildProcess(0, \json_encode(['jobId' => $job->jobId], \JSON_THROW_ON_ERROR)),
 );
 
 Assert::same(0, $capacityLoop->run());
