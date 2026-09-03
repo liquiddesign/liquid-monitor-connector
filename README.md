@@ -2,7 +2,19 @@
 
 Connector mezi webem a Liquid Monitor.
 
-**Aktuální verze:** `3.0.0-alpha` (major 3 — pull-model cron worker; push crony zůstávají kompatibilní s v2 API).
+**Aktuální verze:** `3.0.6` (major 3 — pull-model cron worker; push crony zůstávají kompatibilní s v2 API).
+
+## Napojení jedním promptem
+
+Nejrychlejší cesta, jak tenhle connector do projektu zapojit, je nechat to udělat
+agenta: nainstaluj Claude Code plugin `lqdeck` (`/plugin marketplace add
+liquiddesign/lqdeck-mcp` → `/plugin install lqdeck@lqdeck`) a v repu tohoto
+projektu spusť `/lqdeck:setup`. Projde discovery (framework, git remote,
+existující monitor-worker, …), založí nebo doplní projekt na LQDecku,
+nainstaluje a nakonfiguruje connector podle skutečných hodnot projektu, a na
+konci ověří, že vše skutečně reportuje. Zbytek tohoto README popisuje, co se
+přitom instaluje a nastavuje — hodí se k pochopení connectoru samotného, nebo
+když ho chceš zapojit ručně, bez agenta.
 
 ## Components
 
@@ -109,7 +121,7 @@ liquidMonitorDbQuery:
 
 ## Pull-model cron worker
 
-Pro projekty s `job_execution_mode: pull` na monitoru spouštěj crony přes `bin/monitor-worker` místo HTTP push na presenter URL.
+Pro projekty s `job_execution_mode: pull` na monitoru spouštěj crony přes `bin/monitor-worker` místo HTTP push na presenter URL. Kroky 1–3 níže (worker infrastruktura — NEON, scheduler, bootstrap) platí vždy; jak pak konkrétní crony worker najde a spustí, řeš přes [`#[PullCron]`](#code-managed-pull-crony-pullcron) — je to hlavní doporučený způsob, žádný ruční krok v adminu navíc není potřeba. Krok 4 (ruční založení cronu v adminu a přepnutí režimu) je legacy postup pro crony, které `#[PullCron]` nepoužívají.
 
 ### Minimální instalace (Nette)
 
@@ -156,7 +168,7 @@ Logika (každou minutu, `MonitorWorkerLauncher`, URL + API klíč z NEON) je v c
 
 **3. Handler** — jedna třída v `app/Cron/`, cron code v LQDeck = `lcfirst` název bez přípony `Handler`.
 
-**4. LQDeck admin** — u cronu nastav `Execution mode: Pull` (až po nasazení workeru). Vypni starý HTTP Crunz trigger pro stejný cron.
+**4. (legacy, pro crony bez `#[PullCron]`) LQDeck admin** — u cronu nastav `Execution mode: Pull` (až po nasazení workeru). Vypni starý HTTP Crunz trigger pro stejný cron. Nový cron zaveď radši přes `#[PullCron]` (níže) — bez tohoto ručního kroku.
 
 **5. Nette bootstrap class** — default `App\Bootstrap`; jiná třída přes `NETTE_BOOTSTRAP_CLASS` v `.env`.
 
@@ -164,7 +176,8 @@ Ukázková NEON konfigurace: `examples/monitor-worker.neon.dist`.
 
 ### Code-managed pull crony (`#[PullCron]`)
 
-Cron nemusí existovat na monitoru předem — stačí handler s `#[PullCron]` atributem a jedno volání
+**Doporučený způsob**, jak pull crony zavádět — viz [Pull-model cron worker](#pull-model-cron-worker)
+výše. Cron nemusí existovat na monitoru předem — stačí handler s `#[PullCron]` atributem a jedno volání
 `$cron->schedulePullJob()`. Kód je zdroj pravdy: `name`, `description`, `repeatCount`,
 `concurrencyMode`, `timeout` a `maxQueueSize` se z atributu synchronizují do monitoru při každém
 volání; `active` zůstává admin-only kill switch a nesynchronizuje se.
@@ -213,43 +226,6 @@ liquidMonitorConnector:
     workerHandlers:
         import: @App\Cron\ImportHandler
 ```
-
-## Orchestrator worker setup
-
-### 1. Projekt na monitoru
-
-```bash
-php artisan triage:provision-project <id> --json --repo-path=/opt/autonomy/my-app
-```
-
-Vytvoří `triage_api_key`, zapne `orchestrator_enabled` a založí git context source pro daný repo path.
-
-### 2. Host (z kořene repa)
-
-```bash
-/path/to/liquid-monitor-connector/bin/orchestrator-init
-```
-
-Vypíše `.env` do `<repo>/.orchestrator/.env`. Potřeba jsou jen dvě hodnoty:
-
-```dotenv
-ORCHESTRATOR_MONITOR_URL=https://monitor.lqd.cz
-ORCHESTRATOR_API_KEY=trk_…
-```
-
-Kapacita, `claude_binary` a turn timeout přicházejí z monitoru (`orchestrator_settings`); odpovídající env proměnné jsou jen volitelný debug override. Alias env vars: `TRIAGE_MONITOR_URL`, `TRIAGE_API_KEY`, …
-
-### 3. Cron
-
-```cron
-* * * * * /path/to/liquid-monitor-connector/bin/orchestrator-run --env-file=/opt/autonomy/my-app/.orchestrator/.env >> /var/log/orchestrator-run.log 2>&1
-```
-
-### Pre-flight
-
-- `git`, `tmux`, `claude` v PATH (kontroluje i `orchestrator-init`)
-- `orchestrator_repo_path` na projektu ukazuje na existující clone
-- Repo-mode (default): čistý pracovní strom (modifikované tracked soubory blokují běh; untracked se ignorují)
 
 ## Development
 
