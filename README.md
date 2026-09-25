@@ -2,7 +2,10 @@
 
 Connector mezi webem a Liquid Monitor.
 
-**Aktuální verze:** `3.0.6` (major 3 — pull-model cron worker; push crony zůstávají kompatibilní s v2 API).
+**Aktuální verze:** `3.0.7` (major 3 — pull-model cron worker; push crony zůstávají kompatibilní s v2 API).
+
+**Kompatibilita:** PHP 8.1+, `nette/utils` 3.x i 4.x, `symfony/console|process|dotenv` 6.3+ / 7 / 8.
+Connector nezávisí na `liquiddesign/base`, takže jde nasadit i na projekty se StORM 1.x.
 
 ## Napojení jedním promptem
 
