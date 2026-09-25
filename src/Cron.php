@@ -130,7 +130,7 @@ class Cron
 
 		if ($response->getStatusCode() === 200 && $content) {
 			try {
-				return Json::decode($content, true);
+				return Json::decode($content, Json::FORCE_ARRAY);
 			} catch (JsonException $e) {
 				return null;
 			}
@@ -160,7 +160,7 @@ class Cron
 
 		if ($response->getStatusCode() === 200 && $content) {
 			try {
-				$decoded = Json::decode($content, true);
+				$decoded = Json::decode($content, Json::FORCE_ARRAY);
 
 				return $decoded['data'] ?? null;
 			} catch (JsonException $e) {
@@ -202,7 +202,7 @@ class Cron
 
 		if ($response->getStatusCode() === 200 && $content) {
 			try {
-				return Json::decode($content, true);
+				return Json::decode($content, Json::FORCE_ARRAY);
 			} catch (JsonException $e) {
 				return null;
 			}
@@ -285,7 +285,7 @@ class Cron
 		}
 
 		try {
-			$body = Json::decode($rawBody, forceArrays: true);
+			$body = Json::decode($rawBody, Json::FORCE_ARRAY);
 		} catch (JsonException $e) {
 			Debugger::log($e, ILogger::EXCEPTION);
 

@@ -64,7 +64,7 @@ final class WorkerExecuteCommand extends Command
 
 		if ($argumentsJson !== '') {
 			try {
-				$decoded = Json::decode($argumentsJson, forceArrays: true);
+				$decoded = Json::decode($argumentsJson, Json::FORCE_ARRAY);
 				$arguments = \is_array($decoded) ? $decoded : null;
 			} catch (\Throwable $e) {
 				\fwrite(\STDERR, 'monitor-worker execute: invalid arguments JSON: ' . $e->getMessage() . "\n");

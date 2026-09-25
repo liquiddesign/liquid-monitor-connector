@@ -64,7 +64,8 @@ $logger = new LiquidMonitorLogger(
 	new Request(new UrlScript('http://localhost/')),
 	$reporter,
 	new RequestFactory(),
-	new User($storage),
+	// Pojmenovaně: nette/security 3.1 má UserStorage až jako 4. parametr, 3.2+ jako první.
+	new User(storage: $storage),
 );
 
 // --- sendToLogger() musí do payloadu vždy přidat connector_type => 'nette'. ---

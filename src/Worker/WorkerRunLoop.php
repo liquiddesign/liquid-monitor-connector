@@ -209,7 +209,7 @@ final class WorkerRunLoop
 		}
 
 		try {
-			$decoded = Json::decode($output, forceArrays: true);
+			$decoded = Json::decode($output, Json::FORCE_ARRAY);
 
 			return \is_array($decoded) ? $decoded : null;
 		} catch (JsonException) {
