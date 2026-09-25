@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace LiquidMonitorConnector\Bin;
 
+use LiquidMonitorConnector\Console\ConsoleCompat;
 use LiquidMonitorConnector\Worker\WorkerClient;
 use LiquidMonitorConnector\Worker\WorkerExecuteCommand;
 use LiquidMonitorConnector\Worker\WorkerRunCommand;
@@ -138,8 +139,8 @@ $client = new WorkerClient(
 );
 
 $app = new Application('monitor-worker', '1.0.0');
-$app->addCommand(new WorkerRunCommand($client, $workerScript));
-$app->addCommand(new WorkerExecuteCommand());
+ConsoleCompat::addCommand($app, new WorkerRunCommand($client, $workerScript));
+ConsoleCompat::addCommand($app, new WorkerExecuteCommand());
 
 if ($commandName === null) {
 	$app->setDefaultCommand('run', true);

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use LiquidMonitorConnector\Console\ConsoleCompat;
 use LiquidMonitorConnector\Worker\CronJobHandler;
 use LiquidMonitorConnector\Worker\CronJobHandlerRegistry;
 use LiquidMonitorConnector\Worker\WorkerExecuteCommand;
@@ -82,7 +83,7 @@ PHP);
 
 $app = new Application();
 $app->setAutoExit(false);
-$app->addCommand(new WorkerExecuteCommand());
+ConsoleCompat::addCommand($app, new WorkerExecuteCommand());
 
 $output = new BufferedOutput();
 $exitCode = $app->run(new ArrayInput([

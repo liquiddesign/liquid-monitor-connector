@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace LiquidMonitorConnector\Bin;
 
+use LiquidMonitorConnector\Console\ConsoleCompat;
 use LiquidMonitorConnector\Orchestrator\Commands\OrchestratorRunCommand;
 use LiquidMonitorConnector\Orchestrator\MonitorClient;
 use Symfony\Component\Console\Application;
@@ -145,7 +146,7 @@ $command = new OrchestratorRunCommand(
 );
 
 $app = new Application('orchestrator-run', '1.0.0');
-$app->addCommand($command);
+ConsoleCompat::addCommand($app, $command);
 $app->setDefaultCommand((string) $command->getName(), true);
 
 \array_unshift($forward, $scriptName);
