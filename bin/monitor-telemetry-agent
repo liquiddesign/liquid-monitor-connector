@@ -1,0 +1,46 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+namespace LiquidMonitorConnector\Bin;
+
+use LiquidMonitorConnector\Telemetry\Agent\Aggregator;
+use LiquidMonitorConnector\Telemetry\Agent\JsonlFileSink;
+use LiquidMonitorConnector\Telemetry\Agent\TelemetryAgent;
+use LiquidMonitorConnector\Telemetry\TelemetryConfig;
+
+$autoloadCandidates = [
+	__DIR__ . '/../vendor/autoload.php',
+	__DIR__ . '/../../../autoload.php',
+];
+
+$autoloadFound = false;
+
+foreach ($autoloadCandidates as $candidate) {
+	if (\is_file($candidate)) {
+		require $candidate;
+		$autoloadFound = true;
+
+		break;
+	}
+}
+
+if (!$autoloadFound) {
+	\fwrite(\STDERR, "monitor-telemetry-agent: could not locate vendor/autoload.php\n");
+	exit(1);
+}
+
+$options = \getopt('', ['host::', 'port::', 'max-runtime::', 'out-dir:']);
+$outDir = \is_string($options['out-dir'] ?? null) ? $options['out-dir'] : null;
+
+if ($outDir === null) {
+	\fwrite(\STDERR, "usage: monitor-telemetry-agent --out-dir=DIR [--host=127.0.0.1] [--port=" . TelemetryConfig::DEFAULT_PORT . "] [--max-runtime=65]\n");
+	exit(2);
+}
+
+$host = \is_string($options['host'] ?? null) ? $options['host'] : '127.0.0.1';
+$port = \is_string($options['port'] ?? null) ? (int) $options['port'] : TelemetryConfig::DEFAULT_PORT;
+$maxRuntime = \is_string($options['max-runtime'] ?? null) ? (int) $options['max-runtime'] : 65;
+
+exit((new TelemetryAgent(new Aggregator(), new JsonlFileSink($outDir)))->run($host, $port, $maxRuntime));

@@ -29,6 +29,7 @@ když ho chceš zapojit ručně, bez agenta.
 - **`orchestrator-init`** (`bin/orchestrator-init`) — jednorázový setup hostu: vygeneruje `<repo>/.orchestrator/.env`, doplní `.orchestrator/` do `.gitignore` a ověří kredity proti monitoru.
 - **`LiquidMonitorLogViewerDI`** (`src/Bridges/LiquidMonitorLogViewerDI.php`) — DI extension, která vystaví read-only JSON API pro Tracy logy přímo z connectoru. Bundluje balíček [`liquiddesign/nette-log-viewer`](https://github.com/liquiddesign/nette-log-viewer) a registruje jeho routy/presentery, takže hostová aplikace nemusí balíček instalovat ani registrovat zvlášť. Viz [Log viewer](#log-viewer).
 - **`LiquidMonitorDbQueryDI`** (`src/Bridges/LiquidMonitorDbQueryDI.php`) — DI extension pro read-only SQL dotazy proti databázi host aplikace (PDO proxy pro monitor orchestrátor). Viz [DB query proxy](#db-query-proxy).
+- **`LiquidMonitorTelemetryDI`** (`src/Bridges/LiquidMonitorTelemetryDI.php`) — výkonová telemetrie (routy, fáze requestu, SQL, studené procesy) s lokálním agentem `bin/monitor-telemetry-agent`. Výchozí stav vypnuto. Viz [Výkonová telemetrie](#výkonová-telemetrie).
 
 Starý `bin/triage-pull` (read-only `claude -p`) je nahrazen orchestrátorem — nepoužívat.
 
@@ -229,6 +230,63 @@ liquidMonitorConnector:
     workerHandlers:
         import: @App\Cron\ImportHandler
 ```
+
+## Výkonová telemetrie
+
+Měří, kde aplikace ztrácí čas, a přitom ji **nezpomalí**: request jen zapisuje do paměti
+(`hrtime()` + pole se stropem), na konci pošle **jeden UDP datagram** lokálnímu agentovi a na nic
+nečeká. Agent neběží → datagram zmizí, aplikace nic nepozná. Nic se nezapisuje do DB aplikace.
+
+```neon
+extensions:
+    liquidMonitorTelemetry: LiquidMonitorConnector\Bridges\LiquidMonitorTelemetryDI
+
+liquidMonitorTelemetry:
+    enabled: true              # výchozí false — upgrade connectoru nic nezapne
+    environment: prod
+    # volitelné (výchozí hodnoty):
+    # port: 47801              # každé prostředí na stejném stroji vlastní port
+    # sampleRate: 0.1          # podíl requestů s celou časovou osou; pomalé a chybové jdou vždy
+    # slowRequestMs: 1000
+    # slowSpanMs: 100          # pomalá operace → text + backtrace (nejvýš maxBacktraces na request)
+    # storm: true              # SQL přes StORM\Connection::setQueryObserver() (StORM 2.1+)
+    # agent:
+    #     autostart: true      # agenta spouští monitor-worker Crunz task každou minutu
+    #     outDir: %tempDir%/telemetry
+```
+
+Co se napojí samo (každý Nette projekt):
+
+| Signál | Odkud |
+|---|---|
+| route, status, doba, peak paměť | eventy `Nette\Application` |
+| fáze `boot` / `startup` / `presenter` / `send` | dtto; render šablony padá do `send` |
+| studený request (kompiloval skripty), stáří procesu | rozdíl `opcache_get_status()` na začátku a konci |
+| SQL (počet, čas, N+1, pomalé dotazy s backtrace) | StORM observer, když má projekt StORM 2.1+ |
+
+Projekt dopojí vlastní operace (QI, daemony, …) a tagy s malou kardinalitou:
+
+```php
+$start = Recorder::begin();
+$result = $client->call($method);
+Recorder::end('qi', $method, $start, $failed);
+
+$rows = Recorder::measure('daemon', 'search', fn () => $daemon->search($query));
+
+Recorder::tag('shop', 'abel');   // ne identita uživatele
+
+$stack->push(GuzzleMiddleware::create(), 'telemetry');   // odchozí HTTP (klíč = host)
+```
+
+Agent (`vendor/bin/monitor-telemetry-agent`) žije ~65 s, port otevírá s `SO_REUSEPORT` (starý a nový
+se překrývají, po deployi neběží starý kód) a skládá datagramy do minutových bucketů
+s logaritmickými histogramy. Zatím je zapisuje do `outDir/telemetry-YYYY-MM-DD.jsonl` (denní strop
+200 MB); odesílání do LQDecku přijde v další verzi. Projekty na pull modelu ho mají spuštěný
+automaticky přes `MonitorWorkerTasks.php`; ostatní přidají Crunz task s
+`AgentLauncher::spawnDetached()`.
+
+Režie na PHP 8.5 (`php tests/bench/telemetry-overhead.php [počet SQL]`): request s 200 SQL
+~0,16 ms, s 1000 SQL ~0,38 ms včetně odeslání; neaktivní recorder ~50 ns na volání.
 
 ## Development
 

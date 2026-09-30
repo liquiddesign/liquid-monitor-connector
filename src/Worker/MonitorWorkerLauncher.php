@@ -6,6 +6,8 @@ namespace LiquidMonitorConnector\Worker;
 
 use Carbon\Carbon;
 use LiquidMonitorConnector\Cron;
+use LiquidMonitorConnector\Telemetry\Agent\AgentLauncher;
+use LiquidMonitorConnector\Telemetry\TelemetryConfig;
 use Nette\DI\Container;
 
 /**
@@ -63,6 +65,11 @@ final class MonitorWorkerLauncher
 			return 1;
 		}
 
+		$phpBinary ??= (new \Symfony\Component\Process\PhpExecutableFinder())->find() ?: 'php';
+
+		// Agent telemetrie nezávisí na cronech — běží, i když je connector (crony) vypnutý.
+		self::startTelemetryAgent($container, $projectRoot, $phpBinary);
+
 		try {
 			$cron = $container->getByType(Cron::class);
 		} catch (\Throwable $e) {
@@ -86,7 +93,6 @@ final class MonitorWorkerLauncher
 		}
 
 		$monitorUrl = ConnectorUrl::normalize($cron->getUrl());
-		$phpBinary ??= (new \Symfony\Component\Process\PhpExecutableFinder())->find() ?: 'php';
 
 		$cmd = \sprintf(
 			'%s %s run --bootstrap=%s --monitor-url=%s --api-key=%s --max-runtime=%d 2>&1',
@@ -111,6 +117,29 @@ final class MonitorWorkerLauncher
 		}
 
 		return $exitCode;
+	}
+
+	private static function startTelemetryAgent(Container $container, string $projectRoot, string $phpBinary): void
+	{
+		try {
+			$config = $container->getByType(TelemetryConfig::class, false);
+		} catch (\Throwable) {
+			return;
+		}
+
+		if (!$config instanceof TelemetryConfig || !$config->enabled || !$config->agentAutostart || $config->agentOutDir === null) {
+			return;
+		}
+
+		$agentBin = $projectRoot . '/vendor/bin/monitor-telemetry-agent';
+
+		if (!\is_file($agentBin)) {
+			self::log('telemetry-agent: vendor/bin/monitor-telemetry-agent missing — skip');
+
+			return;
+		}
+
+		AgentLauncher::spawnDetached($config, $agentBin, $config->agentOutDir, $phpBinary);
 	}
 
 	private static function log(string $message): void
