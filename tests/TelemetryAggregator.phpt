@@ -99,3 +99,33 @@ $aggregator->ingest($datagram(['route' => 'B:b']));
 $aggregator->ingest($datagram(['route' => 'C:c']));
 $routes = \array_column($aggregator->drain()[0]['requests'], 'route');
 Assert::same(['A:a', 'B:b', Recorder::KEY_OVERFLOW], $routes);
+
+// --- Normalizace v agentovi: varianty s literály se slijí, N+1 se sečte v rámci requestu. ---
+$aggregator = new Aggregator();
+$aggregator->ingest($datagram(['keys' => ['sql' => [
+	["SELECT * FROM person WHERE id = 'a'", 1, 2.0, 2.0, 0],
+	["SELECT * FROM person WHERE id = 'b'", 1, 3.0, 3.0, 0],
+	["SELECT * FROM person WHERE id = 'c'", 1, 4.0, 4.0, 1],
+	['h:0badf00d', 1, 9.0, 9.0, 0],
+	['h:deadbeef', 2, 5.0, 3.0, 0],
+], 'http' => [['api.example', 1, 50.0, 50.0, 0]]], 'tx' => ['h:0badf00d' => "SELECT * FROM x WHERE uuid IN ('1', '2', '3')"]]));
+$aggregator->ingest($datagram(['keys' => ['sql' => [["SELECT * FROM person WHERE id = 'z'", 1, 1.0, 1.0, 0]]]]));
+
+$operations = [];
+
+foreach ($aggregator->drain()[0]['ops'] as $operation) {
+	$operations[$operation['type'] . ':' . $operation['key']] = $operation;
+}
+
+$person = $operations['sql:SELECT * FROM person WHERE id = ?'];
+Assert::same(4, $person['count']);
+Assert::same(10.0, $person['sum_ms']);
+Assert::same(4.0, $person['max_ms']);
+Assert::same(1, $person['errors']);
+Assert::same(2, $person['requests']);
+Assert::same(3, $person['max_per_request']);
+Assert::true(isset($operations['sql:SELECT * FROM x WHERE uuid IN (?+)']));
+Assert::true(isset($operations['sql:h:deadbeef']), 'hash without text stays as it is');
+Assert::true(isset($operations['http:api.example']), 'types without a normalizer are untouched');
+Assert::count(4, $operations);
+

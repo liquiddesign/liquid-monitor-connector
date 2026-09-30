@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LiquidMonitorConnector\Telemetry\Agent;
 
 use LiquidMonitorConnector\Telemetry\Recorder;
+use LiquidMonitorConnector\Telemetry\StormBridge;
 
 /**
  * Skládá datagramy recorderu do minutových bucketů.
@@ -16,6 +17,11 @@ use LiquidMonitorConnector\Telemetry\Recorder;
  * - texty dlouhých klíčů (hash → SQL).
  *
  * Kardinalita je shora omezená, přebytek jde do klíče {@see Recorder::KEY_OVERFLOW}.
+ *
+ * Klíče operací se tu normalizují (SQL: literály → `?`) — mimo request, takže to aplikaci nic nestojí.
+ * Varianty téhož dotazu se nejdřív sečtou v rámci jednoho datagramu, aby `max_per_request` ukázal N+1
+ * i u dotazů s hodnotami vloženými přímo do SQL. Dlouhý klíč (`h:<crc32>`) jde normalizovat jen když
+ * datagram nese jeho text (`tx`, recorder ho přibaluje k nejdražším); jinak zůstane hash.
  */
 final class Aggregator
 {
@@ -26,8 +32,15 @@ final class Aggregator
 
 	private int $invalid = 0;
 
-	public function __construct(private int $maxTracesPerMinute = 200, private int $maxKeysPerMinute = 2000)
+	/** @var array<string, \Closure(string): string> */
+	private array $normalizers;
+
+	/**
+	 * @param array<string, \Closure(string): string>|null $normalizers typ => normalizace klíče; null = výchozí (SQL)
+	 */
+	public function __construct(private int $maxTracesPerMinute = 200, private int $maxKeysPerMinute = 2000, ?array $normalizers = null)
 	{
+		$this->normalizers = $normalizers ?? [StormBridge::TYPE => StormBridge::normalizeSql(...)];
 	}
 
 	public function ingest(string $datagram): bool
@@ -90,15 +103,15 @@ final class Aggregator
 
 		unset($request);
 
+		$texts = \is_array($payload['tx'] ?? null) ? $payload['tx'] : [];
+
 		foreach (\is_array($payload['keys'] ?? null) ? $payload['keys'] : [] as $type => $byKey) {
 			if (!\is_array($byKey)) {
 				continue;
 			}
 
-			foreach ($byKey as $entry) {
-				if (\is_array($entry) && \count($entry) === 5 && \is_string($entry[0] ?? null)) {
-					$this->addOperation($bucket, $env, (string) $type, $entry[0], \array_slice($entry, 1));
-				}
+			foreach ($this->mergeNormalized((string) $type, $byKey, $texts) as $key => $stats) {
+				$this->addOperation($bucket, $env, (string) $type, (string) $key, $stats);
 			}
 		}
 
@@ -146,6 +159,48 @@ final class Aggregator
 		}
 
 		return $drained;
+	}
+
+	/**
+	 * Klíče jednoho datagramu po normalizaci, varianty téhož dotazu sečtené.
+	 * @param array<mixed> $entries [[ref, počet, součet ms, max ms, chyby], …]
+	 * @param array<mixed> $texts hash => text
+	 * @return array<string, array{int, float, float, int}>
+	 */
+	private function mergeNormalized(string $type, array $entries, array $texts): array
+	{
+		$normalizer = $this->normalizers[$type] ?? null;
+		$merged = [];
+
+		foreach ($entries as $entry) {
+			if (!\is_array($entry) || \count($entry) !== 5 || !\is_string($entry[0] ?? null)) {
+				continue;
+			}
+
+			$key = $entry[0];
+
+			if ($normalizer !== null) {
+				$text = \str_starts_with($key, 'h:') ? ($texts[$key] ?? null) : $key;
+
+				if (\is_string($text)) {
+					try {
+						$key = $normalizer($text);
+					} catch (\Throwable) {
+						// nenormalizovaný klíč je pořád lepší než zahozený
+					}
+				}
+			}
+
+			$current = $merged[$key] ?? [0, 0.0, 0.0, 0];
+			$merged[$key] = [
+				$current[0] + (int) $entry[1],
+				$current[1] + (float) $entry[2],
+				\max($current[2], (float) $entry[3]),
+				$current[3] + (int) $entry[4],
+			];
+		}
+
+		return $merged;
 	}
 
 	/**
