@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.1.0] — 2026-09-30
+
+Performance telemetry in the spirit of Laravel Nightwatch — built so that it cannot slow the host down.
+Off by default; nothing changes for a host until it sets `liquidMonitorTelemetry: enabled: true`.
+
+### Added
+- `LiquidMonitorTelemetryDI` — hooks `Nette\Application` events (route, status, phases `boot` / `startup` /
+  `presenter` / `send`, peak memory) and, when the host has StORM 2.1+, `StORM\Connection::setQueryObserver()`
+  (SQL count, time, N+1, slow queries with backtraces). Older StORM is skipped silently.
+- `Telemetry\Recorder` — writes only to capped in-memory arrays (`hrtime()` + array append) and sends one
+  fire-and-forget UDP datagram at the end of the request; transport errors are swallowed. Cold requests are
+  detected from the opcache `misses` delta (userland state does not survive FastCGI requests).
+  Public API for host-specific operations: `measure()`, `begin()` / `end()`, `record()`, `tag()`.
+- `Telemetry\GuzzleMiddleware` for outgoing HTTP (key = host).
+- `bin/monitor-telemetry-agent` — local agent aggregating datagrams into minute buckets with mergeable log
+  histograms; writes daily JSONL (200 MB/day cap) for now. Lives ~65 s and binds with `SO_REUSEPORT`, so the
+  agent spawned every minute by `MonitorWorkerLauncher` overlaps the previous one and never runs stale code.
+- `tests/bench/telemetry-overhead.php` — measured on PHP 8.5: ~0.16 ms per request with 200 SQL, ~0.38 ms with
+  1000 SQL (including the UDP send); inactive recorder ~50 ns per call.
+
 ## [3.0.7] — 2026-09-25
 
 Connector 3.x installs on older Nette stacks (StORM 1.x, nette/utils 3.x, Symfony 6.x — e.g. Levior B2B)
