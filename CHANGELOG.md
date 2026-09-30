@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.2.0] — 2026-09-30
+
+### Added
+- `Telemetry\Agent\MonitorSink` — the agent posts its minute buckets to LQDeck (`POST {connector url}/perf`).
+  URL and key come from `liquidMonitorConnector` or from `liquidMonitorTelemetry: url / apiKey`. When LQDeck does
+  not answer, minutes are spooled in `agent.outDir` (50 MB cap) and resent after the next successful post; 4xx other
+  than 408/429 is not retried. Without URL and key the agent keeps writing JSONL as in 3.1.0.
+- The API key reaches the agent through the `LQDECK_API_KEY` environment variable instead of the command line,
+  which is readable by every user on the host via `ps`.
+- `Recorder::setKeyNormalizer()`; `StormBridge` registers `normalizeSql()` (literals → `?`, `IN (?, ?)` → `(?+)`).
+  It runs only after a request overflows `maxKeysPerType`, so variants of one query with inlined values merge into
+  one key instead of `_other`, while ordinary requests pay nothing.
+
+### Fixed
+- `sampleRate`, `slowRequestMs` and `slowSpanMs` accept integers from NEON. In 3.1.0 `slowSpanMs: 20` threw
+  `InvalidConfigurationException` and took the whole DI container down.
+
 ## [3.1.0] — 2026-09-30
 
 Performance telemetry in the spirit of Laravel Nightwatch — built so that it cannot slow the host down.
