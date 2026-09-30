@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.2.1] — 2026-09-30
+
+### Fixed
+- The telemetry agent never started when it had an API key: `nohup LQDECK_API_KEY=… php …` made nohup try to execute
+  the variable assignment. The assignment now precedes `nohup` (`AgentLauncher::detachedCommand()`).
+- The agent lives for the whole worker run that started it plus a 70 s overlap. With `runNetteAuto(290)` the 65 s
+  default left minutes without a listening agent, because the launcher only runs when a worker run starts.
+
 ## [3.2.0] — 2026-09-30
 
 ### Added
