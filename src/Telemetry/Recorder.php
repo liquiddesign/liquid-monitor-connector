@@ -90,6 +90,9 @@ final class Recorder
 
 	private static bool $shutdownRegistered = false;
 
+	/** @var array<string, \Closure(string): string> typ => normalizace klíče, použije se až při přetečení */
+	private static array $normalizers = [];
+
 	public static function start(TelemetryConfig $config, ?Transport $transport = null, ?float $requestStart = null): void
 	{
 		if (self::$active || !$config->isActiveForCurrentSapi()) {
@@ -125,6 +128,23 @@ final class Recorder
 	public static function isActive(): bool
 	{
 		return self::$active;
+	}
+
+	/**
+	 * Normalizace klíče pro typ, jehož klíče nesou literály (SQL s hodnotami vloženými do dotazu).
+	 * Volá se jen když request přeteče `maxKeysPerType` — běžný request nic nestojí; přetečený
+	 * slije varianty téhož dotazu do jednoho klíče místo do `_other`. Nastavení přežije reset().
+	 * @param (\Closure(string): string)|null $normalizer null = odebrat
+	 */
+	public static function setKeyNormalizer(string $type, ?\Closure $normalizer): void
+	{
+		if ($normalizer === null) {
+			unset(self::$normalizers[$type]);
+
+			return;
+		}
+
+		self::$normalizers[$type] = $normalizer;
 	}
 
 	/**
@@ -232,7 +252,7 @@ final class Recorder
 			unset($stats);
 		} else {
 			if (isset(self::$keys[$type]) && \count(self::$keys[$type]) >= self::$maxKeys) {
-				$key = self::KEY_OVERFLOW;
+				$key = self::overflowKey($type, $key);
 			}
 
 			if (isset(self::$keys[$type][$key])) {
@@ -528,6 +548,29 @@ final class Recorder
 		}
 
 		return $spans;
+	}
+
+	/**
+	 * Klíč pro request, který přetekl strop klíčů: normalizovaný (když typ normalizaci má a vejde se
+	 * do dvojnásobku stropu), jinak `_other`.
+	 */
+	private static function overflowKey(string $type, string $key): string
+	{
+		$normalizer = self::$normalizers[$type] ?? null;
+
+		if ($normalizer === null) {
+			return self::KEY_OVERFLOW;
+		}
+
+		try {
+			$normalized = $normalizer($key);
+		} catch (\Throwable) {
+			return self::KEY_OVERFLOW;
+		}
+
+		return isset(self::$keys[$type][$normalized]) || \count(self::$keys[$type] ?? []) < self::$maxKeys * 2
+			? $normalized
+			: self::KEY_OVERFLOW;
 	}
 
 	private static function recordSlow(string $type, string $key, int $durationNs, bool $error): void

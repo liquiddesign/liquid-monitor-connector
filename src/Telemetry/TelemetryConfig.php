@@ -36,6 +36,9 @@ final class TelemetryConfig
 		public readonly bool $agentAutostart = true,
 		public readonly ?string $agentOutDir = null,
 		public readonly int $agentMaxRuntime = 65,
+		/** Kam agent posílá data; null = connector URL a klíč cronové extension (`liquidMonitorConnector`). */
+		public readonly ?string $monitorUrl = null,
+		public readonly ?string $apiKey = null,
 	) {
 	}
 

@@ -37,9 +37,10 @@ class LiquidMonitorTelemetryDI extends \Nette\DI\CompilerExtension
 			'environment' => Expect::string()->nullable(),
 			'host' => Expect::string($defaults->host),
 			'port' => Expect::int($defaults->port),
-			'sampleRate' => Expect::float($defaults->sampleRate)->min(0.0)->max(1.0),
-			'slowRequestMs' => Expect::float($defaults->slowRequestMs),
-			'slowSpanMs' => Expect::float($defaults->slowSpanMs),
+			// NEON `1` / `20` je int — Expect::float() by ho odmítl a shodil celý DI kontejner
+			'sampleRate' => Expect::type('int|float')->default($defaults->sampleRate)->castTo('float')->min(0.0)->max(1.0),
+			'slowRequestMs' => Expect::type('int|float')->default($defaults->slowRequestMs)->castTo('float'),
+			'slowSpanMs' => Expect::type('int|float')->default($defaults->slowSpanMs)->castTo('float'),
 			'maxSpans' => Expect::int($defaults->maxSpans),
 			'maxKeysPerType' => Expect::int($defaults->maxKeysPerType),
 			'maxSlowSpans' => Expect::int($defaults->maxSlowSpans),
@@ -47,6 +48,9 @@ class LiquidMonitorTelemetryDI extends \Nette\DI\CompilerExtension
 			'maxPayloadBytes' => Expect::int($defaults->maxPayloadBytes)->max(65000),
 			'cli' => Expect::bool($defaults->cli),
 			'storm' => Expect::bool($defaults->storm),
+			// Kam agent posílá data; výchozí = url + apiKey z liquidMonitorConnector
+			'url' => Expect::string()->nullable(),
+			'apiKey' => Expect::string()->nullable(),
 			'agent' => Expect::structure([
 				'autostart' => Expect::bool($defaults->agentAutostart),
 				// výchozí %tempDir%/telemetry
@@ -83,6 +87,8 @@ class LiquidMonitorTelemetryDI extends \Nette\DI\CompilerExtension
 				'agentAutostart' => $agent->autostart,
 				'agentOutDir' => $agent->outDir ?? (\is_string($tempDir) ? $tempDir . '/telemetry' : null),
 				'agentMaxRuntime' => $agent->maxRuntime,
+				'monitorUrl' => $config->url,
+				'apiKey' => $config->apiKey,
 			]);
 	}
 

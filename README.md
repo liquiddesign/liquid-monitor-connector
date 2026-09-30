@@ -280,10 +280,16 @@ $stack->push(GuzzleMiddleware::create(), 'telemetry');   // odchozí HTTP (klí�
 
 Agent (`vendor/bin/monitor-telemetry-agent`) žije ~65 s, port otevírá s `SO_REUSEPORT` (starý a nový
 se překrývají, po deployi neběží starý kód) a skládá datagramy do minutových bucketů
-s logaritmickými histogramy. Zatím je zapisuje do `outDir/telemetry-YYYY-MM-DD.jsonl` (denní strop
-200 MB); odesílání do LQDecku přijde v další verzi. Projekty na pull modelu ho mají spuštěný
-automaticky přes `MonitorWorkerTasks.php`; ostatní přidají Crunz task s
-`AgentLauncher::spawnDetached()`.
+s logaritmickými histogramy. Každou minutu je pošle do LQDecku (`POST {connector url}/perf`, URL a klíč
+z `liquidMonitorConnector`, nebo `liquidMonitorTelemetry: url/apiKey`); když LQDeck neodpoví, odloží je
+do fronty v `outDir` (strop 50 MB) a dožene s dalším úspěšným odesláním. Bez URL a klíče zapisuje jen
+do `outDir/telemetry-YYYY-MM-DD.jsonl` (denní strop 200 MB). Klíč dostává přes proměnnou prostředí
+`LQDECK_API_KEY`, ne v příkazové řádce (ta je v `ps` vidět všem uživatelům stroje). Projekty na pull
+modelu ho mají spuštěný automaticky přes `MonitorWorkerTasks.php`; ostatní přidají Crunz task
+s `AgentLauncher::spawnDetached()`.
+
+⚠️ Port (`port`) musí být na stroji unikátní pro každou aplikaci × prostředí — jinak agent jedné
+aplikace chytá datagramy druhé.
 
 Režie na PHP 8.5 (`php tests/bench/telemetry-overhead.php [počet SQL]`): request s 200 SQL
 ~0,16 ms, s 1000 SQL ~0,38 ms včetně odeslání; neaktivní recorder ~50 ns na volání.

@@ -133,6 +133,21 @@ Assert::same(10, $payload['agg']['sql'][0]);
 Assert::count(5, $payload['spans']);
 Assert::same(5, $payload['ds']);
 
+// --- Přetečení s normalizací: varianty téhož dotazu se slijí, `_other` až nad dvojnásobkem stropu. ---
+Recorder::setKeyNormalizer('sql', LiquidMonitorConnector\Telemetry\StormBridge::normalizeSql(...));
+$transport = new MemoryTransport();
+Recorder::start($config(['maxKeysPerType' => 3]), $transport);
+
+for ($i = 0; $i < 50; $i++) {
+	Recorder::record('sql', "SELECT * FROM t WHERE id IN ('a{$i}', 'b{$i}')", 1000);
+}
+
+Recorder::flush(200);
+$payload = $decode($transport);
+Assert::count(4, $payload['keys']['sql']);
+Assert::same(47, $key($payload, 'sql', 'SELECT * FROM t WHERE id IN (?+)')[1][1]);
+Recorder::setKeyNormalizer('sql', null);
+
 // --- Pomalá operace: slow záznam s backtrace, nejvýš maxBacktraces. ---
 $transport = new MemoryTransport();
 Recorder::start($config(['slowSpanMs' => 1.0, 'maxBacktraces' => 1, 'maxSlowSpans' => 2]), $transport);

@@ -80,6 +80,12 @@ namespace {
 	Assert::true(Recorder::isActive());
 	Assert::type(\Closure::class, $container->getByType(StORM\Connection::class)->observer);
 
+	// --- Celá čísla z NEONu u float položek (`slowSpanMs: 20`) nesmí shodit kontejner. ---
+	Recorder::reset();
+	$config = $build(['enabled' => true, 'cli' => true, 'sampleRate' => 1, 'slowSpanMs' => 20, 'slowRequestMs' => 500])->getByType(TelemetryConfig::class);
+	Assert::same(1.0, $config->sampleRate);
+	Assert::same(20.0, $config->slowSpanMs);
+
 	// --- storm: false → SQL se nenapojí. ---
 	Recorder::reset();
 	$container = $build(['enabled' => true, 'cli' => true, 'storm' => false]);

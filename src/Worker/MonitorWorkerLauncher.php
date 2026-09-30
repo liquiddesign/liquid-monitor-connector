@@ -139,7 +139,30 @@ final class MonitorWorkerLauncher
 			return;
 		}
 
-		AgentLauncher::spawnDetached($config, $agentBin, $config->agentOutDir, $phpBinary);
+		$monitorUrl = $config->monitorUrl;
+		$apiKey = $config->apiKey;
+
+		if ($monitorUrl === null || $apiKey === null) {
+			try {
+				$cron = $container->getByType(Cron::class, false);
+			} catch (\Throwable) {
+				$cron = null;
+			}
+
+			if ($cron instanceof Cron && $cron->isEnabled()) {
+				$monitorUrl ??= $cron->getUrl();
+				$apiKey ??= $cron->getApiKey();
+			}
+		}
+
+		AgentLauncher::spawnDetached(
+			$config,
+			$agentBin,
+			$config->agentOutDir,
+			$phpBinary,
+			$monitorUrl !== null ? ConnectorUrl::normalize($monitorUrl) : null,
+			$apiKey,
+		);
 	}
 
 	private static function log(string $message): void
