@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.2.2] — 2026-09-30
+
+### Changed
+- The agent normalizes operation keys (SQL literals → `?`, `IN (?, ?)` → `(?+)`) before aggregating, outside the
+  request. Queries with inlined values (`… WHERE id = 'x'`) used to arrive in LQDeck as one row per value; they now
+  merge, and variants within one request are summed first, so `max_per_request` shows the N+1. A long key
+  (`h:<crc32>`) is normalized only when the datagram carries its text. The recorder keeps normalizing only on
+  overflow, to stay out of `_other`.
+
 ## [3.2.1] — 2026-09-30
 
 ### Fixed
