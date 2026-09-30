@@ -19,6 +19,9 @@ use Nette\DI\Container;
  */
 final class MonitorWorkerLauncher
 {
+	/** O kolik agent přežije běh workeru, který ho spustil — překryv se starty v dalších minutách. */
+	private const AGENT_OVERLAP_SECONDS = 70;
+
 	/**
 	 * @return int Process exit code (0 = OK).
 	 */
@@ -68,7 +71,7 @@ final class MonitorWorkerLauncher
 		$phpBinary ??= (new \Symfony\Component\Process\PhpExecutableFinder())->find() ?: 'php';
 
 		// Agent telemetrie nezávisí na cronech — běží, i když je connector (crony) vypnutý.
-		self::startTelemetryAgent($container, $projectRoot, $phpBinary);
+		self::startTelemetryAgent($container, $projectRoot, $phpBinary, $maxRuntime);
 
 		try {
 			$cron = $container->getByType(Cron::class);
@@ -119,7 +122,12 @@ final class MonitorWorkerLauncher
 		return $exitCode;
 	}
 
-	private static function startTelemetryAgent(Container $container, string $projectRoot, string $phpBinary): void
+	/**
+	 * Agent žije aspoň tak dlouho jako běh workeru, který ho spustil (+ rezerva na překryv s dalším).
+	 * Host s dlouhým `runNetteAuto(290)` by jinak mezi starty agenta měl minuty, kdy datagramy nikdo
+	 * nepřijme — worker (a s ním i spouštění agenta) se ve slotu opakuje až po skončení běhu.
+	 */
+	private static function startTelemetryAgent(Container $container, string $projectRoot, string $phpBinary, int $workerRuntime): void
 	{
 		try {
 			$config = $container->getByType(TelemetryConfig::class, false);
@@ -162,6 +170,7 @@ final class MonitorWorkerLauncher
 			$phpBinary,
 			$monitorUrl !== null ? ConnectorUrl::normalize($monitorUrl) : null,
 			$apiKey,
+			\max($config->agentMaxRuntime, $workerRuntime + self::AGENT_OVERLAP_SECONDS),
 		);
 	}
 

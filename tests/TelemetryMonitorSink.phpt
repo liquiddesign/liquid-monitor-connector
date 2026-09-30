@@ -63,6 +63,31 @@ Assert::false(\is_file($spoolDir . '/spool.jsonl'));
 $command = AgentLauncher::command(new TelemetryConfig(enabled: true), '/app/vendor/bin/monitor-telemetry-agent', '/tmp/t', 'php', 'https://m/api/connector', 'k3y');
 Assert::match("LQDECK_API_KEY='k3y' 'php' '/app/vendor/bin/monitor-telemetry-agent' %A% --monitor-url='https://m/api/connector'", $command);
 Assert::notContains('--api-key', $command);
+Assert::contains('--max-runtime=360', AgentLauncher::command(new TelemetryConfig(enabled: true), 'agent', '/tmp/t', 'php', maxRuntime: 360));
 Assert::notContains('LQDECK_API_KEY', AgentLauncher::command(new TelemetryConfig(enabled: true), 'agent', '/tmp/t', 'php'));
+
+// --- Na pozadí s klíčem: proměnná musí stát před `nohup` (3.2.0 agenta s klíčem nespustil). ---
+$detached = AgentLauncher::detachedCommand(new TelemetryConfig(enabled: true), 'agent', '/tmp/t', 'php', 'https://m/api/connector', 'k3y');
+Assert::match("LQDECK_API_KEY='k3y' nohup 'php' 'agent' %A% > /dev/null 2>&1 &", $detached);
+
+// Skutečně spuštěný agent s klíčem a nedosažitelným monitorem musí přijmout datagram a odložit ho do fronty.
+$port = 41000 + \getmypid() % 20000;
+$agentDir = $spoolDir . '-agent';
+$config = new TelemetryConfig(enabled: true, cli: true, port: $port, agentMaxRuntime: 2);
+AgentLauncher::spawnDetached($config, __DIR__ . '/../bin/monitor-telemetry-agent', $agentDir, \PHP_BINARY, 'http://127.0.0.1:9/api/connector', 'k3y');
+\usleep(600_000);
+LiquidMonitorConnector\Telemetry\Recorder::start($config);
+LiquidMonitorConnector\Telemetry\Recorder::setRoute('Spawn:test');
+LiquidMonitorConnector\Telemetry\Recorder::flush(200);
+
+$deadline = \microtime(true) + 8;
+
+while (!\is_file($agentDir . '/spool.jsonl') && \microtime(true) < $deadline) {
+	\usleep(200_000);
+}
+
+Assert::true(\is_file($agentDir . '/spool.jsonl'), 'agent spawned with an API key did not run');
+Assert::contains('Spawn:test', (string) \file_get_contents($agentDir . '/spool.jsonl'));
+Nette\Utils\FileSystem::delete($agentDir);
 
 Nette\Utils\FileSystem::delete($spoolDir);
