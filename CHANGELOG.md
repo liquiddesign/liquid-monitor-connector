@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.2.3] — 2026-10-01
+
+### Fixed
+- Long SQL keys (over 200 characters, sent as `h:<crc32>`) are normalized in the recorder **before** hashing and
+  their variants merged within the request. Until now the hash came from the raw SQL and the agent could normalize
+  only the ~10 most expensive keys whose text the datagram carried, so every inlined value produced its own hash —
+  about 80 % of the operation keys on a StORM shop. Costs ~3 µs per distinct long query, once at flush.
+- The agent sends a long key to LQDeck always as `h:<crc32>` of the normalized SQL (text in `texts`), whether the
+  datagram carried its text or not. The same query used to arrive once as its full text and once as a hash — two
+  rows in LQDeck. A text truncated at 4000 characters keeps the recorder's hash.
+
 ## [3.2.2] — 2026-09-30
 
 ### Changed

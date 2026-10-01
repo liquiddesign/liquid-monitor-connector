@@ -2,7 +2,7 @@
 
 Connector mezi webem a Liquid Monitor.
 
-**Aktuální verze:** `3.2.2` (major 3 — pull-model cron worker; push crony zůstávají kompatibilní s v2 API).
+**Aktuální verze:** `3.2.3` (major 3 — pull-model cron worker; push crony zůstávají kompatibilní s v2 API).
 
 **Kompatibilita:** PHP 8.1+, `nette/utils` 3.x i 4.x, `symfony/console|process|dotenv` 6.3+ / 7 / 8.
 Connector nezávisí na `liquiddesign/base`, takže jde nasadit i na projekty se StORM 1.x.
@@ -281,7 +281,9 @@ $stack->push(GuzzleMiddleware::create(), 'telemetry');   // odchozí HTTP (klí�
 Agent (`vendor/bin/monitor-telemetry-agent`) žije ~65 s, port otevírá s `SO_REUSEPORT` (starý a nový
 se překrývají, po deployi neběží starý kód) a skládá datagramy do minutových bucketů
 s logaritmickými histogramy. SQL klíče normalizuje (literály → `?`), takže varianty téhož dotazu
-s vloženými hodnotami splynou a N+1 je vidět i u nich — mimo request, aplikaci to nic nestojí. Každou minutu je pošle do LQDecku (`POST {connector url}/perf`, URL a klíč
+s vloženými hodnotami splynou a N+1 je vidět i u nich — mimo request, aplikaci to nic nestojí. Dlouhé
+dotazy (nad 200 znaků, posílají se jako `h:<crc32>`) normalizuje už recorder před hashem (~3 µs na
+odlišný dotaz), jinak by každá hodnota dala vlastní hash. Každou minutu je pošle do LQDecku (`POST {connector url}/perf`, URL a klíč
 z `liquidMonitorConnector`, nebo `liquidMonitorTelemetry: url/apiKey`); když LQDeck neodpoví, odloží je
 do fronty v `outDir` (strop 50 MB) a dožene s dalším úspěšným odesláním. Bez URL a klíče zapisuje jen
 do `outDir/telemetry-YYYY-MM-DD.jsonl` (denní strop 200 MB). Klíč dostává přes proměnnou prostředí
