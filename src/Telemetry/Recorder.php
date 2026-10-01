@@ -34,9 +34,10 @@ final class Recorder
 	public const KEY_OVERFLOW = '_other';
 
 	/** Klíče delší než tohle (typicky SQL) jdou jako `h:<crc32>`, text se přibalí jen k nejdražším. */
-	private const LONG_KEY = 200;
+	public const LONG_KEY = 200;
 
-	private const TEXT_LIMIT = 4000;
+	/** Delší text klíče se v datagramu zkrátí — agent pak jeho hash nepřepočítává. */
+	public const TEXT_LIMIT = 4000;
 
 	private const TEXTS_PER_TYPE = 10;
 
@@ -90,7 +91,7 @@ final class Recorder
 
 	private static bool $shutdownRegistered = false;
 
-	/** @var array<string, \Closure(string): string> typ => normalizace klíče, použije se až při přetečení */
+	/** @var array<string, \Closure(string): string> typ => normalizace klíče (dlouhé klíče a přetečení) */
 	private static array $normalizers = [];
 
 	public static function start(TelemetryConfig $config, ?Transport $transport = null, ?float $requestStart = null): void
@@ -132,8 +133,9 @@ final class Recorder
 
 	/**
 	 * Normalizace klíče pro typ, jehož klíče nesou literály (SQL s hodnotami vloženými do dotazu).
-	 * Volá se jen když request přeteče `maxKeysPerType` — běžný request nic nestojí; přetečený
-	 * slije varianty téhož dotazu do jednoho klíče místo do `_other`. Nastavení přežije reset().
+	 * Volá se na dlouhé klíče při sestavení datagramu (jednou na odlišný klíč, ~3 µs za 1 kB SQL)
+	 * a při přetečení `maxKeysPerType`, kde slije varianty do jednoho klíče místo do `_other`.
+	 * Krátké klíče normalizuje až agent, mimo request. Nastavení přežije reset().
 	 * @param (\Closure(string): string)|null $normalizer null = odebrat
 	 */
 	public static function setKeyNormalizer(string $type, ?\Closure $normalizer): void
@@ -145,6 +147,15 @@ final class Recorder
 		}
 
 		self::$normalizers[$type] = $normalizer;
+	}
+
+	/**
+	 * Jak klíč putuje v datagramu i z agenta do LQDecku: krátký jak je, dlouhý jako `h:<crc32>`.
+	 * Stejné pravidlo na obou místech drží jeden dotaz pod jedním klíčem, ať datagram nese jeho text, nebo ne.
+	 */
+	public static function keyRef(string $key): string
+	{
+		return \mb_strlen($key, '8bit') > self::LONG_KEY ? 'h:' . \hash('crc32b', $key) : $key;
 	}
 
 	/**
@@ -439,12 +450,15 @@ final class Recorder
 		$index = [];
 
 		foreach (self::$keys as $type => $byKey) {
+			$normalizer = self::$normalizers[$type] ?? null;
 			$count = 0;
 			$sum = 0;
 			$max = 0;
 			$errors = 0;
-			$hashed = [];
-			$keys[$type] = [];
+			/** @var array<string, array{int, int, int, int}> $merged normalizovaný klíč => [počet, součet ns, max ns, chyby] */
+			$merged = [];
+			/** @var array<string, string> $normalizedOf původní klíč => normalizovaný */
+			$normalizedOf = [];
 
 			foreach ($byKey as $key => $stats) {
 				$key = (string) $key;
@@ -452,15 +466,41 @@ final class Recorder
 				$sum += $stats[1];
 				$max = \max($max, $stats[2]);
 				$errors += $stats[3];
-				$ref = $key;
+				$normalized = $key;
 
-				if (\mb_strlen($key, '8bit') > self::LONG_KEY) {
-					$ref = 'h:' . \hash('crc32b', $key);
+				// Dlouhý klíč odchází jako hash a agent ho bez textu normalizovat nemůže: bez tohohle
+				// by každá hodnota vložená do SQL dala vlastní hash (a v LQDecku vlastní řádek).
+				if ($normalizer !== null && \mb_strlen($key, '8bit') > self::LONG_KEY) {
+					try {
+						$normalized = $normalizer($key);
+					} catch (\Throwable) {
+						// nenormalizovaný klíč je pořád lepší než zahozený
+					}
+				}
+
+				$current = $merged[$normalized] ?? [0, 0, 0, 0];
+				$merged[$normalized] = [$current[0] + $stats[0], $current[1] + $stats[1], \max($current[2], $stats[2]), $current[3] + $stats[3]];
+				$normalizedOf[$key] = $normalized;
+			}
+
+			$keys[$type] = [];
+			$hashed = [];
+			$position = [];
+
+			foreach ($merged as $key => $stats) {
+				$key = (string) $key;
+				$ref = self::keyRef($key);
+
+				if ($ref !== $key) {
 					$hashed[$ref] = [$stats[1], $key];
 				}
 
-				$index[$type][$key] = \count($keys[$type]);
+				$position[$key] = \count($keys[$type]);
 				$keys[$type][] = [$ref, $stats[0], self::ms($stats[1]), self::ms($stats[2]), $stats[3]];
+			}
+
+			foreach ($normalizedOf as $raw => $normalized) {
+				$index[$type][(string) $raw] = $position[$normalized] ?? -1;
 			}
 
 			\uasort($hashed, static fn (array $a, array $b): int => $b[0] <=> $a[0]);

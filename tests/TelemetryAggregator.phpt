@@ -129,3 +129,22 @@ Assert::true(isset($operations['sql:h:deadbeef']), 'hash without text stays as i
 Assert::true(isset($operations['http:api.example']), 'types without a normalizer are untouched');
 Assert::count(4, $operations);
 
+// --- Dlouhý klíč odchází z agenta vždy jako `h:<crc32>` normalizovaného SQL, s textem i bez. ---
+$longSql = 'SELECT ' . \str_repeat('this.col, ', 30) . "this.uuid FROM t WHERE uuid IN ('a', 'b')";
+$normalizedLong = LiquidMonitorConnector\Telemetry\StormBridge::normalizeSql($longSql);
+$longRef = Recorder::keyRef($normalizedLong);
+$aggregator = new Aggregator();
+// starší recorder: hash ze surového SQL + text
+$aggregator->ingest($datagram(['keys' => ['sql' => [['h:' . \hash('crc32b', $longSql), 1, 2.0, 2.0, 0]]], 'tx' => ['h:' . \hash('crc32b', $longSql) => $longSql]]));
+// nový recorder: hash z normalizovaného SQL, bez textu (nebyl mezi nejdražšími)
+$aggregator->ingest($datagram(['keys' => ['sql' => [[$longRef, 2, 3.0, 2.0, 0]]]]));
+// text zkrácený na TEXT_LIMIT se nepřepočítává — dal by jiný hash než celý dotaz
+$truncatedRef = 'h:0000beef';
+$aggregator->ingest($datagram(['keys' => ['sql' => [[$truncatedRef, 1, 1.0, 1.0, 0]]], 'tx' => [$truncatedRef => \str_repeat('x', Recorder::TEXT_LIMIT)]]));
+[$minute] = $aggregator->drain();
+$byKey = \array_column($minute['ops'], null, 'key');
+Assert::same([$longRef, $truncatedRef], \array_keys($byKey));
+Assert::same(3, $byKey[$longRef]['count']);
+Assert::same(2, $byKey[$longRef]['requests']);
+Assert::same($normalizedLong, $minute['texts'][$longRef]);
+

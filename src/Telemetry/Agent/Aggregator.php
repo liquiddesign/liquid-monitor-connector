@@ -20,8 +20,9 @@ use LiquidMonitorConnector\Telemetry\StormBridge;
  *
  * Klíče operací se tu normalizují (SQL: literály → `?`) — mimo request, takže to aplikaci nic nestojí.
  * Varianty téhož dotazu se nejdřív sečtou v rámci jednoho datagramu, aby `max_per_request` ukázal N+1
- * i u dotazů s hodnotami vloženými přímo do SQL. Dlouhý klíč (`h:<crc32>`) jde normalizovat jen když
- * datagram nese jeho text (`tx`, recorder ho přibaluje k nejdražším); jinak zůstane hash.
+ * i u dotazů s hodnotami vloženými přímo do SQL. Dlouhé klíče normalizuje už recorder (před hashem,
+ * {@see Recorder::keyRef()}); tady se znovu hashuje i dlouhý klíč, ke kterému datagram přinesl text,
+ * takže jeden dotaz odchází do LQDecku vždy pod jedním `h:<crc32>`, s textem i bez něj.
  */
 final class Aggregator
 {
@@ -110,14 +111,15 @@ final class Aggregator
 				continue;
 			}
 
-			foreach ($this->mergeNormalized((string) $type, $byKey, $texts) as $key => $stats) {
+			foreach ($this->mergeNormalized((string) $type, $byKey, $texts, $bucket['texts']) as $key => $stats) {
 				$this->addOperation($bucket, $env, (string) $type, (string) $key, $stats);
 			}
 		}
 
-		foreach (\is_array($payload['tx'] ?? null) ? $payload['tx'] : [] as $hash => $text) {
+		// Texty pod hashi z datagramu jdou dál i tak: odkazují na ně spany tras.
+		foreach ($texts as $hash => $text) {
 			if (\is_string($text)) {
-				$bucket['texts'][(string) $hash] = $text;
+				$bucket['texts'][(string) $hash] ??= $text;
 			}
 		}
 
@@ -164,10 +166,11 @@ final class Aggregator
 	/**
 	 * Klíče jednoho datagramu po normalizaci, varianty téhož dotazu sečtené.
 	 * @param array<mixed> $entries [[ref, počet, součet ms, max ms, chyby], …]
-	 * @param array<mixed> $texts hash => text
+	 * @param array<mixed> $texts hash => text z datagramu
+	 * @param array<string, string> $bucketTexts hash => text minuty; sem přibudou texty odcházejících dlouhých klíčů
 	 * @return array<string, array{int, float, float, int}>
 	 */
-	private function mergeNormalized(string $type, array $entries, array $texts): array
+	private function mergeNormalized(string $type, array $entries, array $texts, array &$bucketTexts): array
 	{
 		$normalizer = $this->normalizers[$type] ?? null;
 		$merged = [];
@@ -178,16 +181,27 @@ final class Aggregator
 			}
 
 			$key = $entry[0];
+			$text = \str_starts_with($key, 'h:') ? ($texts[$key] ?? null) : $key;
 
-			if ($normalizer !== null) {
-				$text = \str_starts_with($key, 'h:') ? ($texts[$key] ?? null) : $key;
+			// Zkrácený text (recorder ho ořízne na TEXT_LIMIT) by dal jiný hash než celý dotaz.
+			if (\is_string($text) && $text !== $key && \mb_strlen($text) >= Recorder::TEXT_LIMIT) {
+				$bucketTexts[$key] = $text;
+				$text = null;
+			}
 
-				if (\is_string($text)) {
+			if (\is_string($text)) {
+				if ($normalizer !== null) {
 					try {
-						$key = $normalizer($text);
+						$text = $normalizer($text);
 					} catch (\Throwable) {
 						// nenormalizovaný klíč je pořád lepší než zahozený
 					}
+				}
+
+				$key = Recorder::keyRef($text);
+
+				if ($key !== $text) {
+					$bucketTexts[$key] = $text;
 				}
 			}
 

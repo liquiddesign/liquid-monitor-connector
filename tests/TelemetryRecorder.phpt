@@ -97,7 +97,8 @@ Assert::same(['boot', 'startup', 'send'], \array_keys($payload['ph']));
 Assert::true($payload['ms'] >= 50.0);
 Assert::null($payload['spans']);
 Assert::false($payload['smp']);
-Assert::type('float', $payload['ovh']);
+// režie zaokrouhlená na celé číslo přijde z JSON jako int
+Assert::true(\is_float($payload['ovh']) || \is_int($payload['ovh']));
 
 // --- Chybový request jde vždy s časovou osou; dlouhý klíč jako hash + text. ---
 $transport = new MemoryTransport();
@@ -116,6 +117,30 @@ Assert::same($longSql, $payload['tx'][$hash]);
 Assert::same('sql', $payload['spans'][0][0]);
 Assert::same($key($payload, 'sql', $hash)[0], $payload['spans'][0][1]);
 Assert::same(3000, $payload['spans'][0][3]);
+
+// --- Dlouhé SQL s literály: normalizuje se před hashem, varianty jdou pod jedním `h:<crc32>`. ---
+Recorder::setKeyNormalizer('sql', LiquidMonitorConnector\Telemetry\StormBridge::normalizeSql(...));
+$transport = new MemoryTransport();
+Recorder::start($config(['sampleRate' => 1.0]), $transport);
+$variant = static fn (string $uuid): string => 'SELECT ' . \str_repeat('this.col, ', 30) . "this.uuid FROM t WHERE uuid IN ('{$uuid}', 'x') AND price > 10";
+Recorder::record('sql', $variant('a'), 1_000_000);
+Recorder::record('sql', $variant('b'), 2_000_000);
+Recorder::record('sql', $variant('b'), 4_000_000);
+Recorder::record('sql', "SELECT name FROM t WHERE id = 'short'", 1_000_000);
+Recorder::flush(200);
+
+$payload = $decode($transport);
+$normalized = 'SELECT ' . \str_repeat('this.col, ', 30) . 'this.uuid FROM t WHERE uuid IN (?+) AND price > ?';
+$hash = 'h:' . \hash('crc32b', $normalized);
+Assert::same($hash, Recorder::keyRef($normalized));
+Assert::count(2, $payload['keys']['sql']);
+Assert::same([$hash, 3, 7, 4, 0], $key($payload, 'sql', $hash)[1]);
+Assert::same($normalized, $payload['tx'][$hash]);
+// krátký klíč nechává recorder agentovi (mimo request)
+Assert::same(1, $key($payload, 'sql', "SELECT name FROM t WHERE id = 'short'")[1][1]);
+// spany všech variant ukazují na sloučený klíč
+Assert::same([$key($payload, 'sql', $hash)[0]], \array_values(\array_unique(\array_column(\array_slice($payload['spans'], 0, 3), 1))));
+Recorder::setKeyNormalizer('sql', null);
 
 // --- Stropy: klíče nad limit do `_other`, spany nad limit se jen počítají. ---
 $transport = new MemoryTransport();
