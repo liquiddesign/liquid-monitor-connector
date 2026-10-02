@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.2.4] — 2026-10-02
+
+### Fixed
+- Recorder overhead grew with the length of the SQL text: every distinct query key was normalized (4 regexes) and
+  hashed in full at flush. StORM product queries in ABEL / Ráj tiskáren are ~183 kB (a ~153 kB column list with price
+  expressions) and differ only by their `:__varNNN` bind names, so a product list pushed ~290 keys / 7.4 MB of SQL
+  through it — 4–8 ms per request in production. Queries over 4 kB now enter the recorder as their first 1 kB + last
+  3 kB (`StormBridge::key()`), so the per-key cost is constant; measured on the same pages the product list went from
+  15 to 1.2 ms of overhead, the product detail from 6–8.6 to 0.8 ms.
+- `StormBridge::normalizeSql()` folds StORM bind parameters `:__varNNN` into `?` (lists into `(?+)`). StORM numbers
+  them per request, so the same query used to arrive under a new key for every call.
+
 ## [3.2.3] — 2026-10-01
 
 ### Fixed
