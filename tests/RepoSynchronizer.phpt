@@ -12,11 +12,11 @@ Tester\Environment::setup();
 
 // Git may start background maintenance after commits; its lock files would race
 // the temp-dir purge at the end of the test (seen on CI with a newer git).
-\putenv('GIT_CONFIG_COUNT=2');
-\putenv('GIT_CONFIG_KEY_0=maintenance.auto');
-\putenv('GIT_CONFIG_VALUE_0=false');
-\putenv('GIT_CONFIG_KEY_1=gc.auto');
-\putenv('GIT_CONFIG_VALUE_1=0');
+// Symfony Process passes on only variables that are also in $_SERVER, so set all three.
+foreach (['GIT_CONFIG_COUNT' => '2', 'GIT_CONFIG_KEY_0' => 'maintenance.auto', 'GIT_CONFIG_VALUE_0' => 'false', 'GIT_CONFIG_KEY_1' => 'gc.auto', 'GIT_CONFIG_VALUE_1' => '0'] as $name => $value) {
+	\putenv($name . '=' . $value);
+	$_SERVER[$name] = $_ENV[$name] = $value;
+}
 
 $run = static function (array $cmd): void {
 	$process = new Process($cmd);
@@ -35,6 +35,8 @@ $run(['git', 'init', '--bare', '-b', 'main', $remote]);
 $run(['git', 'clone', $remote, $work]);
 $run(['git', '-C', $work, 'config', 'user.email', 'test@test.cz']);
 $run(['git', '-C', $work, 'config', 'user.name', 'Test']);
+$run(['git', '-C', $work, 'config', 'maintenance.auto', 'false']);
+$run(['git', '-C', $work, 'config', 'gc.auto', '0']);
 \file_put_contents($work . '/README.md', "v1\n");
 $run(['git', '-C', $work, 'add', '.']);
 $run(['git', '-C', $work, 'commit', '-m', 'init']);
