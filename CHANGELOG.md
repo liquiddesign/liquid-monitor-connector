@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [4.0.0] — Unreleased
+## [4.0.0] — 2026-10-16
 
 Upgrade: [`UPGRADE-4.0.md`](UPGRADE-4.0.md). Design: `docs/v4-local-scheduler.md`, data contract: `docs/v4-contract.md`.
 Requires LQDeck accepting connector major 4 (`supported_versions` [2, 3, 4]) **before** any project moves to `^4`.
@@ -27,13 +27,16 @@ Requires LQDeck accepting connector major 4 (`supported_versions` [2, 3, 4]) **b
 - PHP side of the scheduler works with either `pdo_sqlite` or `sqlite3`.
 
 ### Changed
-- **PHP >= 8.0** (was 8.1); symfony `^5.4` allowed.
+- **PHP >= 8.0** (was 8.1); symfony `^5.4` allowed. Real minimums found by the PHP 8.0 `--prefer-lowest` CI job:
+  `nette/security ^3.1`, `liquiddesign/nette-log-viewer ^1.2.4` (loads on PHP 8.0).
 - **Breaking:** `ConcurrencyModeType` and `HealthCheckStatusEnum` are classes with constants instead of enums
   (see UPGRADE-4.0.md for replacements of `->value`, `->name`, `from()`, `cases()`).
 - With `scheduler.enabled`, `schedulePullJob()` / `scheduleJob()` (pull crons), `isCronRunning()`,
   `progressJob()` / `finishJob()` / `failJob()` in a local run use the local scheduler; `getLastCronJobLog()`
   falls back to the last local run while LQDeck is unreachable.
 - `cronTiming` sent to LQDeck is the effective schedule for `scheduler.environment`.
+
+- `UPGRADE-4.0.md` is a project-independent v3 → v4 guide (also in LQDeck help and MCP `get_connector_upgrade_guide`).
 
 ### Deprecated
 - `crunz/MonitorWorkerTasks.php` — use the crontab lines from the README; removed in the next major version.
