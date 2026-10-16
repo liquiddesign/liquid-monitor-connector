@@ -1,0 +1,32 @@
+[package]
+name = "lqcron"
+# Verze binárky = verze balíčku liquiddesign/liquid-monitor-connector (plán § 3).
+# Workflow `release` ji přepíše na vydávanou verzi.
+version = "4.0.0-dev"
+edition = "2024"
+description = "Lokální plánovač cronů connectoru LQDeck v4 (docs/v4-local-scheduler.md)"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "lqcron"
+path = "src/main.rs"
+
+[dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+chrono-tz = "0.10.4"
+getrandom = "0.4.3"
+libc = "0.2.190"
+rusqlite = { version = "0.40.2", features = ["bundled", "backup"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+ureq = { version = "3.4.2", default-features = false, features = ["rustls"] }
+zstd = { version = "0.14.2", default-features = false }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

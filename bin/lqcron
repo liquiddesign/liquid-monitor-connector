@@ -1,0 +1,52 @@
+#!/bin/sh
+# lqcron — lokální plánovač cronů connectoru v4 (docs/v4-local-scheduler.md).
+# Wrapper vybere staticky linkovanou binárku podle architektury stroje.
+set -u
+
+self="$0"
+# Composer v vendor/bin/ dává buď symlink, nebo proxy skript; zkusíme najít skutečný adresář balíčku.
+if command -v readlink >/dev/null 2>&1; then
+	resolved=$(readlink -f "$self" 2>/dev/null || true)
+	if [ -n "$resolved" ]; then
+		self="$resolved"
+	fi
+fi
+dir=$(cd "$(dirname "$self")" && pwd)
+if [ ! -f "$dir/lqcron" ] && [ -d "$dir/../liquiddesign/liquid-monitor-connector/bin" ]; then
+	dir=$(cd "$dir/../liquiddesign/liquid-monitor-connector/bin" && pwd)
+fi
+
+case "$(uname -m)" in
+	x86_64 | amd64) arch=x86_64 ;;
+	aarch64 | arm64) arch=aarch64 ;;
+	*)
+		echo "lqcron: unsupported architecture $(uname -m) (supported: x86_64, aarch64)" >&2
+		exit 126
+		;;
+esac
+
+bin="$dir/lqcron-linux-$arch"
+if [ ! -f "$bin" ]; then
+	echo "lqcron: binary $bin is missing." >&2
+	echo "        Binaries are built by the connector release workflow and are part of tagged releases;" >&2
+	echo "        a dev checkout of the connector does not contain them (cd scheduler && cargo build --release)." >&2
+	exit 127
+fi
+
+if [ ! -x "$bin" ]; then
+	chmod +x "$bin" 2>/dev/null || true
+fi
+if [ ! -x "$bin" ]; then
+	# access(X_OK) selže i na noexec mountu, ne jen při chybějícím exec bitu
+	if [ -n "$(find "$bin" -perm -u+x 2>/dev/null)" ]; then
+		echo "lqcron: cannot execute $bin: the filesystem is probably mounted noexec." >&2
+		echo "        Check: findmnt -T \"$bin\" -o TARGET,OPTIONS" >&2
+		echo "        Fix: remount vendor/ without noexec, or copy the binary to an executable location." >&2
+	else
+		echo "lqcron: $bin is not executable and chmod +x failed (owner: $(ls -l "$bin" | awk '{print $3}'))." >&2
+		echo "        Fix: chmod +x \"$bin\" as the file owner (composer install normally keeps the exec bit)." >&2
+	fi
+	exit 126
+fi
+
+exec "$bin" "$@"

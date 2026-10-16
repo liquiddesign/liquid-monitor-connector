@@ -6,3 +6,7 @@ tests/temp/*
 tests/temp_fixed/*
 .idea/*
 composer.lock
+# lqcron (scheduler/): build výstup. Binárky bin/lqcron-linux-* staví a commituje jen
+# workflow `release` (git add -f v release commitu) — do běžných commitů nepatří.
+scheduler/target/
+bin/lqcron-linux-*

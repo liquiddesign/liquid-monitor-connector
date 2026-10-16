@@ -1,0 +1,15 @@
+services:
+	- Nette\Http\Request(Nette\Http\UrlScript('http://localhost/'))
+	- LqcronE2e\ImportHandler
+	- LqcronE2e\FlakyHandler
+	- LqcronE2e\AfterImportHandler
+	redactor: LqcronE2e\Redactor
+
+liquidMonitorConnector:
+	apiKey: 'E2E-KEY'
+	workerHandlers: auto
+	scheduler:
+		enabled: true
+		environment: test
+		timezone: Europe/Prague
+		logRedactor: '@redactor'
