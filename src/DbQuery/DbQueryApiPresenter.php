@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LiquidMonitorConnector\DbQuery;
 
 use InvalidArgumentException;
+use Nette\Application\AbortException;
 use Nette\Application\Responses\JsonResponse;
 use Nette\Application\UI\Presenter;
 use Nette\Utils\Strings;
@@ -121,6 +122,11 @@ class DbQueryApiPresenter extends Presenter
 	{
 		$this->getHttpResponse()->setCode($code);
 		$this->sendResponse(new JsonResponse($payload));
+
+		// sendResponse() always ends the request with AbortException, but nette/application
+		// < 3.2 (the lowest version on PHP 8.0) does not declare it as never.
+		// @phpstan-ignore deadCode.unreachable
+		throw new AbortException();
 	}
 
 	/**

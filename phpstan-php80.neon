@@ -9,9 +9,6 @@ parameters:
 	# not bugs in the connector, only missing type information in old vendor/.
 	reportUnmatchedIgnoredErrors: false
 	ignoreErrors:
-		# nette/application < 3.2 does not declare Presenter::sendResponse() as never.
-		- message: '#should always throw an exception or terminate script execution but doesn''t do that#'
-		  path: src/DbQuery/DbQueryApiPresenter.php
 		# nette/utils < 4 does not narrow Arrays::isList() to a list.
 		- message: '#expects list<array<string, mixed>>, array<mixed, mixed> given#'
 		  path: src/Telemetry/Agent/MonitorSink.php

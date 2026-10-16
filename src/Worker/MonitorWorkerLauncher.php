@@ -74,7 +74,7 @@ final class MonitorWorkerLauncher
 		self::startTelemetryAgent($container, $projectRoot, $phpBinary, $maxRuntime);
 
 		try {
-			$cron = $container->getByType(Cron::class);
+			$cron = ContainerBootstrap::service($container, Cron::class);
 		} catch (\Throwable $e) {
 			self::log('monitor-worker: liquidMonitorConnector not configured — skip (' . $e->getMessage() . ')');
 
