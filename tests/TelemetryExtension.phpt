@@ -65,7 +65,8 @@ namespace {
 	Assert::false($config->enabled);
 	Assert::same($tempDir . '/telemetry', $config->agentOutDir);
 	$application = $container->getByType(Application::class);
-	Assert::same([], $application->onShutdown);
+	// nette/application 3.1 leaves the event property null until a handler is added, newer versions [].
+	Assert::same([], $application->onShutdown ?? []);
 	Assert::null($container->getByType(StORM\Connection::class)->observer);
 	Assert::false(Recorder::isActive());
 
