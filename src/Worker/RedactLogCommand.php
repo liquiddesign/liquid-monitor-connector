@@ -32,7 +32,7 @@ final class RedactLogCommand extends Command
 
 	public static function redactor(Container $container): LogRedactor|null
 	{
-		$config = $container->getByType(SchedulerConfig::class);
+		$config = ContainerBootstrap::service($container, SchedulerConfig::class);
 
 		if ($config->logRedactor === null) {
 			return null;

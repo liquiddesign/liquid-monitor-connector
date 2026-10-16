@@ -39,6 +39,11 @@ foreach (['insert', 'update', 'delete', 'drop', 'alter', 'create', 'truncate'] a
 $wrapLimit = static function (string $sql, int $limit) use ($connection): string {
 	$ref = new ReflectionClass(ReadOnlyQueryRunner::class);
 	$method = $ref->getMethod('wrapWithLimit');
+	// PHP 8.0 refuses to invoke a private method without this; it is a no-op since 8.1
+	// and deprecated since 8.5, so only call it where it matters.
+	if (\PHP_VERSION_ID < 80100) {
+		$method->setAccessible(true);
+	}
 
 	/** @var string $wrapped */
 	$wrapped = $method->invoke(new ReadOnlyQueryRunner($connection), $sql, $limit);

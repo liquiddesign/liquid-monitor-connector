@@ -137,9 +137,9 @@ final class ExportDefinitionsCommand extends Command
 		$bootstrap = ContainerBootstrap::resolvePath(\is_string($bootstrapOption) ? $bootstrapOption : null);
 		$container = $this->containerFactory !== null ? ($this->containerFactory)($bootstrap) : ContainerBootstrap::load($bootstrap);
 
-		$config = $container->getByType(SchedulerConfig::class);
-		$catalog = $container->getByType(CronDefinitionCatalog::class);
-		$cron = $container->getByType(Cron::class);
+		$config = ContainerBootstrap::service($container, SchedulerConfig::class);
+		$catalog = ContainerBootstrap::service($container, CronDefinitionCatalog::class);
+		$cron = ContainerBootstrap::service($container, Cron::class);
 
 		try {
 			$export = self::build($config, $catalog, $cron, $bootstrap, \getcwd() ?: '.');

@@ -21,7 +21,7 @@ final class WorkerClient implements WorkerClientContract
 		private string $apiKey,
 		?Client $client = null,
 		private int $timeoutSeconds = 30,
-		private bool|string $verifyTls = true,
+		bool|string $verifyTls = true,
 	) {
 		$connectorUrl = \rtrim($connectorUrl, '/');
 

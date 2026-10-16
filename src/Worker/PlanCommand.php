@@ -51,8 +51,8 @@ final class PlanCommand extends Command
 			? ($this->containerFactory)(\is_string($bootstrap) ? $bootstrap : null)
 			: ContainerBootstrap::load(\is_string($bootstrap) ? $bootstrap : null);
 
-		$config = $container->getByType(SchedulerConfig::class);
-		$catalog = $container->getByType(CronDefinitionCatalog::class);
+		$config = ContainerBootstrap::service($container, SchedulerConfig::class);
+		$catalog = ContainerBootstrap::service($container, CronDefinitionCatalog::class);
 
 		$environmentOption = $input->getOption('environment');
 		$environment = \is_string($environmentOption) && $environmentOption !== '' ? $environmentOption : $config->environment;

@@ -25,6 +25,24 @@ final class ContainerBootstrap
 		return \realpath($path) ?: $path;
 	}
 
+	/**
+	 * A service the command cannot run without. Older nette/di types getByType()
+	 * as nullable; this fails with a readable message instead of a null.
+	 * @template T of object
+	 * @param class-string<T> $type
+	 * @return T
+	 */
+	public static function service(Container $container, string $type): object
+	{
+		$service = $container->getByType($type, false);
+
+		if (!$service instanceof $type) {
+			throw new \RuntimeException(\sprintf('Service %s is not registered in the application container (is the liquidMonitorConnector extension enabled?).', $type));
+		}
+
+		return $service;
+	}
+
 	public static function load(string|null $bootstrap): Container
 	{
 		/** @var mixed $container */

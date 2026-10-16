@@ -94,7 +94,7 @@ final class WorkerExecuteCommand extends Command
 				throw new \RuntimeException('Bootstrap file must return a Nette\DI\Container instance.');
 			}
 
-			$registry = $container->getByType(CronJobHandlerRegistry::class);
+			$registry = ContainerBootstrap::service($container, CronJobHandlerRegistry::class);
 			$handler = $registry->get($cronCode);
 			$handler->execute($arguments);
 
@@ -177,7 +177,7 @@ final class WorkerExecuteCommand extends Command
 
 			$bootstrap = $input->getOption('bootstrap');
 			$container = ContainerBootstrap::load(\is_string($bootstrap) ? $bootstrap : null);
-			$registry = $container->getByType(CronJobHandlerRegistry::class);
+			$registry = ContainerBootstrap::service($container, CronJobHandlerRegistry::class);
 			$handler = $registry->get($cronCode);
 
 			$this->installTerminationHandler($handler, $context);

@@ -78,9 +78,9 @@ final class EnqueueDueCommand extends Command
 				? ($this->containerFactory)(\is_string($bootstrap) ? $bootstrap : null)
 				: ContainerBootstrap::load(\is_string($bootstrap) ? $bootstrap : null);
 
-			$config = $container->getByType(SchedulerConfig::class);
-			$catalog = $container->getByType(CronDefinitionCatalog::class);
-			$cron = $container->getByType(Cron::class);
+			$config = ContainerBootstrap::service($container, SchedulerConfig::class);
+			$catalog = ContainerBootstrap::service($container, CronDefinitionCatalog::class);
+			$cron = ContainerBootstrap::service($container, Cron::class);
 
 			if ($config->isLocal()) {
 				$output->writeln('enqueue-due: scheduler.enabled is on — lqcron plans the crons itself, nothing to do. Remove enqueue-due from crontab.');
