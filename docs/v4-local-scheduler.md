@@ -19,6 +19,8 @@
 - Kompatibilita schématu SQLite přes `min_reader_version`, aby rollback deploye nezastavil plánovač (§ 12.1).
 - Provozní podmínky `stateDir` — práva, `pdo_sqlite`, žádné NFS, zápis z hostu bez plánovače (§ 4.1).
 - Politika alertů pro opožděně doručené události, aby výpadek LQDecku neskončil lavinou alertů (§ 8.2).
+- **Rozvrh má jediný zdroj — atribut** — i bez `lqcron` (`enqueue-due` místo crunz tasků); crunz
+  ve 4.x jen deprecated spouštěč workeru, v 5.0 pryč (§ 5.0).
 - Bariéra proti vyhladovění `exclusive` jobů (§ 6.3), stropy na log běhu, výsledek a velikost
   události (§ 7.1, § 7.4, § 8.1), heartbeat mimo outbox (§ 8.1), hlídání slotu při deployi (§ 11.2).
 
@@ -96,9 +98,11 @@ běh; ovlivní jen to, kdy LQDeck uvidí události a kdy dorazí příkazy. Stej
   s `.sha256`.
 - Verze binárky = verze balíčku. `lqcron --version` vypisuje i verzi schématu SQLite; kdy smí starší
   binárka běžet nad novějším schématem, určuje § 12.1.
-- PHP část v4: `WorkerExecuteCommand` (lokální režim), export definic, PHP API nad lokální frontou.
-  `WorkerRunLoop`, `WorkerClient`, `MonitorWorkerLauncher`, `crunz/MonitorWorkerTasks.php` zůstávají
-  pro projekty, které lokální plánovač nezapnou (vzdálený pull jako ve v3, viz § 13).
+- PHP část v4: `WorkerExecuteCommand` (lokální režim), export definic, PHP API nad lokální frontou,
+  `monitor-worker enqueue-due` (§ 5.0). `WorkerRunLoop`, `WorkerClient` a `MonitorWorkerLauncher`
+  zůstávají pro projekty, které lokální plánovač nezapnou (vzdálený pull jako ve v3, viz § 13).
+  `crunz/MonitorWorkerTasks.php` je ve 4.x **deprecated** (spouští jen worker, žádné rozvrhy) a v 5.0
+  se odstraní; doporučený spouštěč je řádek v crontabu (§ 5.0).
 
 ### 3.1 PHP >= 8.0
 
@@ -191,6 +195,42 @@ extension při kompilaci kontejneru (s `scheduler.enabled`) a `lqcron status` / 
   jobů nejsou přípustné.
 
 ## 5. Definice cronů
+
+### 5.0 Rozvrh má jediný zdroj: atribut
+
+**Kdy a v kterém prostředí cron běží, je zapsané jen v atributu `#[PullCron]` jeho handleru**
+(`schedule`, `schedules`, `environments`). Nikde jinde — ne v crunz tasku, ne v pomocné funkci
+`*CronForEnvironment()`, ne v crontabu po cronech, ne v adminu LQDecku. Atribut je **výkonný**,
+ne popisný: co v něm stojí, to běží.
+
+Proč: dnes atribut jen posílá `cronTiming` do LQDecku jako popis a skutečný běh řídí crunz, takže
+se ty dva zdroje rozjedou a nikdo to nevidí. Ověřeno v ABELu (`abel-monorepo`, 2026-10-16):
+`MergadoPricesHandler` má `schedule: '*/30 * * * *'`, crunz ho ale spouští přes
+`mergadoCronForEnvironment()` (`abel/tasks/bootstrap.php:112`) — produkce `30 * * * *`, test
+`15 */4 * * *`. Komentář v `FrequentTasks.php` i atribut slibují 30 minut, běží se jednou za hodinu,
+a LQDeck ukazuje rozvrh, který neplatí.
+
+Platí v obou režimech 4.x:
+
+- **S `scheduler.enabled`** plánuje `lqcron tick` podle exportu atributů (§ 5.2).
+- **Bez plánovače (v3 režim)** nahrazuje crunz tasky po cronech příkaz
+  `php vendor/bin/monitor-worker enqueue-due`, spouštěný každou minutu jedním řádkem v crontabu.
+  Vyhodnotí atributy pro `scheduler.environment` a splatné crony zařadí přes `schedulePullJob()`.
+  Sémantika je stejná jako u crunzu (`isDue(now)`, bez doplňování zmeškaných běhů a bez `missed`);
+  zmeškané běhy, DST a `after` umí až `lqcron`. Výrazy vyhodnocuje `dragonmantank/cron-expression`
+  (tutéž knihovnu používá crunz, verze 3.x běží na PHP 8.0). Crunzové `preventOverlapping` není
+  potřeba: zařazení je okamžité a o souběhu běhů rozhoduje LQDeck podle `concurrencyMode`
+  a `maxQueueSize`.
+
+Kontrola: `monitor-worker plan [--environment=production] [--hours=24]` (PHP, oba režimy)
+a `lqcron plan` vypíšou efektivní rozvrh po vyhodnocení `schedules` / `environments`. Výstup patří
+do PR, který rozvrh mění. LQDeck u `pull` i `local` cronů zobrazuje `timing` jen pro čtení a s
+poznámkou „z kódu“.
+
+`enqueue-due` je čistě aditivní a nezávisí na zbytku v4, proto **vyjde už v 3.3** na větvi `3.x`
+(rozhodnuto 2026-10-16) a do `4.x` se převezme mergem. ABEL tak srovná rozvrhy dřív, než bude
+`lqcron` hotový. Ve 3.3 musí kód dodržet PHP 8.1 (požadavek `3.x`), ve `4.x` pak projde přepisem
+na 8.0 s ostatními (§ 3.1).
 
 ### 5.1 Atribut `#[PullCron]` — rozšíření
 
@@ -613,7 +653,8 @@ Release connectoru 4.0 se nevydá, dokud není bod 1 na produkci LQDecku. Postup
 ### 13.2 Zpětná kompatibilita
 
 - **Bez `scheduler.enabled`** se v4 chová jako v3 (vzdálený pull přes worker, push beze změny) —
-  za předpokladu § 13.1. Projekt může přejít na `^4` a plánovač zapnout později.
+  za předpokladu § 13.1. Projekt může přejít na `^4` a plánovač zapnout později. Rozvrhy ale
+  i v tomto režimu bere z atributů přes `enqueue-due` (§ 5.0), ne z crunzu.
 - **LQDeck** (`liquid-monitor-back`) dostane podporu v4 jako **nové funkce na hlavní větvi, bez nové
   branche a s plnou zpětnou kompatibilitou**: nové endpointy (`v4/events`, `v4/commands`), nový
   `job_execution_mode='local'` a sloupec `external_uuid`; stávající push i v3 pull API se nemění.
@@ -630,7 +671,13 @@ Release connectoru 4.0 se nevydá, dokud není bod 1 na produkci LQDecku. Postup
 
 ABEL jako první:
 
-1. přepsat env-specifické rozvrhy a skip gaty z `tasks/*.php` do atributů (`schedules`, `environments`),
+1. **srovnat rozvrhy do atributů** (`schedules`, `environments`) a přepnout spouštění na
+   `enqueue-due` (§ 5.0; lze už na 3.3). Za pravdu se **nebere atribut, ale to, co dnes skutečně
+   běží** (crunz výraz po vyhodnocení `*CronForEnvironment()` a skip gatů pro každé prostředí).
+   Pro všech 66 handlerů s `#[PullCron]` v ABELu (+ `rajtiskaren/`) vznikne tabulka *atribut ×
+   crunz produkce × crunz test*; každý rozdíl rozhodne člověk (např. `MergadoPricesHandler`:
+   atribut `*/30 * * * *` vs. produkce `30 * * * *` — buď opravit atribut na skutečnost, nebo
+   vědomě zrychlit běh). Teprve pak smazat rozvrhy z `tasks/*.php`,
 2. `^4` + `scheduler.shadow: true` na testu, porovnat se stávajícím během (několik dní, vč. nočních),
 3. test: `scheduler.enabled`, crontab → `lqcron tick`, vypnout crunz,
 4. RT test, pak produkce ABEL a RT (deploy skript s `pause` / `resume`),
@@ -641,7 +688,8 @@ ABEL jako první:
 | Verze | Obsah |
 |---|---|
 | **4.0** | tick + hlídací procesy, SQLite, port pravidel souběhu, `maxParallel`, `resources`, `schedules` / `environments`, `after`, `missed`, timeout přes skupinu procesů, ztracené běhy, outbox s odesíláním v samostatném `lqcron deliver` + ingest v LQDecku, příkazy z LQDecku, hlídané služby (watchdog/keepalive), CLI, pauza a hlídání slotu pro deploy, health check, stínový režim, bariéra proti vyhladovění, kompatibilita schématu (`min_reader_version`). V LQDecku: `supported_versions` 4 (napřed, § 13.1), ingest, příkazy, politika opožděných alertů, porovnání stínového režimu |
-| **4.1** | opakování s backoffem (`retry`, `backoff`), škálování job-workeru jako služba, metriky běhů a alert na neobvykle dlouhý běh v LQDecku |
+| **3.3** (předstih na `3.x`) | `monitor-worker enqueue-due` + `monitor-worker plan`, `schedules` / `environments` v atributu — jediný zdroj rozvrhu ještě před `lqcron` (§ 5.0) |
+| **4.1** | opakování s backoffem (`retry`, `backoff`), škálování job-workeru jako služba, metriky běhů a alert na neobvykle dlouhý běh v LQDecku; v LQDecku alert „rozvrh nesedí“ (skutečné běhy neodpovídají `timing` — zobecněné porovnání ze stínového režimu) |
 | **5.x** | sloučení s aplikační frontou jobů (`JobRepository` / `bin/job-worker.php`) do jednoho vykonavatele |
 
 ## 15. Záměrné odchylky od dnešního LQDecku
@@ -670,4 +718,6 @@ branche, jen zpětně kompatibilní rozšíření.
 
 Uzavřeno 2026-10-16 (review): LQDeck přidá major 4 do `supported_versions` jako první krok, nezávisle
 na ingestu (§ 13.1); kompatibilita schématu přes `min_reader_version` (§ 12.1); heartbeat mimo outbox;
-opožděné události bez jednotlivých alertů; PHP databázi nezakládá a zápis z hostu bez plánovače selže.
+opožděné události bez jednotlivých alertů; PHP databázi nezakládá a zápis z hostu bez plánovače selže;
+rozvrh má jediný zdroj v atributu a `enqueue-due` + `schedules` / `environments` vyjdou už v 3.3
+(§ 5.0); crunz ve 4.x jen deprecated spouštěč workeru, v 5.0 pryč.
