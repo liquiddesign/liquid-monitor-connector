@@ -20,7 +20,7 @@
         "nette/utils": "^3.0 || ^4.0",
         "nette/http": "^3.0",
         "nette/application": "^3.0",
-        "nette/security": "^3.0",
+        "nette/security": "^3.1",
         "tracy/tracy": "^2.0",
         "nette/di": "~3.0",
         "guzzlehttp/guzzle": "^7.0 || ^8.0",
@@ -32,7 +32,7 @@
         "dragonmantank/cron-expression": "^3.3"
     },
     "require-dev": {
-        "nette/tester": "^2.0",
+        "nette/tester": "^2.5",
         "composer/composer": "~2.0",
         "liquiddesign/codestyle": "~3.0.9",
         "liquiddesign/migrator": "~1.0",

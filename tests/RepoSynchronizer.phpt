@@ -10,6 +10,14 @@ require __DIR__ . '/../vendor/autoload.php';
 
 Tester\Environment::setup();
 
+// Git may start background maintenance after commits; its lock files would race
+// the temp-dir purge at the end of the test (seen on CI with a newer git).
+\putenv('GIT_CONFIG_COUNT=2');
+\putenv('GIT_CONFIG_KEY_0=maintenance.auto');
+\putenv('GIT_CONFIG_VALUE_0=false');
+\putenv('GIT_CONFIG_KEY_1=gc.auto');
+\putenv('GIT_CONFIG_VALUE_1=0');
+
 $run = static function (array $cmd): void {
 	$process = new Process($cmd);
 	$process->setTimeout(60);
