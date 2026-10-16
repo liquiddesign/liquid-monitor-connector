@@ -1,0 +1,146 @@
+name: release
+
+# Vydání connectoru 4.x (plán § 3). Tag se nikdy nezakládá ručně: workflow sestaví obě
+# statické binárky lqcron, zapíše vedle nich .sha256, vytvoří attestation původu,
+# commitne `chore(release): vX.Y.Z` (binárky + Cargo verze + Version::CURRENT)
+# a teprve ten commit otaguje.
+#
+# Binárky bin/lqcron-linux-* jsou v .gitignore; do repa se dostanou jen tímhle
+# release commitem (`git add -f`). Composer je tak má v tagu, aniž by je kdo
+# commitoval ručně.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Verze bez "v" (např. 4.0.1). Pozor: první stabilní nesmí být semverově pod předchozí alphou.'
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate input
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "4.x" ]; then
+            echo "::error::release runs only on the 4.x branch (got ${GITHUB_REF_NAME})"; exit 1
+          fi
+          if ! echo "$VERSION" | grep -Eq '^4\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::version must look like 4.Y.Z[-pre]"; exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag must not exist
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::tag v$VERSION already exists"; exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl, aarch64-unknown-linux-musl
+
+      - name: Setup PHP (tests)
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: sqlite3, pdo_sqlite
+
+      - name: Set versions
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          sed -i -E "0,/^version = \".*\"/s//version = \"$VERSION\"/" scheduler/Cargo.toml
+          sed -i -E "s/(public const CURRENT = ')[^']*(';)/\1$VERSION\2/" src/Version.php
+          grep -q "version = \"$VERSION\"" scheduler/Cargo.toml
+          grep -q "CURRENT = '$VERSION'" src/Version.php
+
+      - name: Test
+        working-directory: scheduler
+        env:
+          LQCRON_REQUIRE_PHP: '1'
+        run: |
+          (cd .. && composer install --prefer-dist --no-progress --no-interaction)
+          cargo test
+
+      - name: Build static binaries
+        working-directory: scheduler
+        run: |
+          pip install cargo-zigbuild
+          cargo zigbuild --release --target x86_64-unknown-linux-musl
+          cargo zigbuild --release --target aarch64-unknown-linux-musl
+          cp target/x86_64-unknown-linux-musl/release/lqcron ../bin/lqcron-linux-x86_64
+          cp target/aarch64-unknown-linux-musl/release/lqcron ../bin/lqcron-linux-aarch64
+          chmod 0755 ../bin/lqcron-linux-x86_64 ../bin/lqcron-linux-aarch64
+
+      - name: Checksums and size
+        working-directory: bin
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          for a in x86_64 aarch64; do
+            sha256sum "lqcron-linux-$a" > "lqcron-linux-$a.sha256"
+            size=$(stat -c %s "lqcron-linux-$a")
+            echo "$a: $size B"
+            if [ "$size" -gt 10485760 ]; then echo "::error::binary over 10 MB — switch to release assets (plán § 3)"; exit 1; fi
+          done
+          ./lqcron-linux-x86_64 verify ./lqcron-linux-x86_64
+
+      # lqcron --version, Version::CURRENT (= connector_version v export.json) a tag musí sedět
+      - name: Versions agree
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          bin_version=$(./bin/lqcron-linux-x86_64 --version | awk '{print $2}')
+          php_version=$(php -r 'require "src/Version.php"; echo LiquidMonitorConnector\Version::CURRENT;')
+          echo "tag $VERSION, lqcron $bin_version, Version::CURRENT $php_version"
+          test "$bin_version" = "$VERSION"
+          test "$php_version" = "$VERSION"
+
+      # Celá PHP sada + e2e nad právě sestavenou release binárkou (ne debug buildem)
+      - name: PHP tests and end-to-end against the release binary
+        env:
+          LQCRON_BINARY: ${{ github.workspace }}/bin/lqcron-linux-x86_64
+          XDG_STATE_HOME: ${{ runner.temp }}/xdg
+        run: |
+          for driver in sqlite3 pdo_sqlite; do
+            mkdir -p "$RUNNER_TEMP/tester-$driver"
+            LQCRON_PHP_SQLITE_DRIVER=$driver TMPDIR="$RUNNER_TEMP/tester-$driver" \
+              vendor/bin/tester tests -s -C --temp "$RUNNER_TEMP/tester-$driver"
+          done
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            bin/lqcron-linux-x86_64
+            bin/lqcron-linux-aarch64
+
+      - name: Commit and tag
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898341+github-actions[bot]@users.noreply.github.com"
+          git add scheduler/Cargo.toml scheduler/Cargo.lock src/Version.php
+          git add -f bin/lqcron-linux-x86_64 bin/lqcron-linux-x86_64.sha256 bin/lqcron-linux-aarch64 bin/lqcron-linux-aarch64.sha256
+          git commit -m "chore(release): v$VERSION"
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git push origin "HEAD:4.x"
+          git push origin "v$VERSION"
