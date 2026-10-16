@@ -3,6 +3,44 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [4.0.0] — Unreleased
+
+Upgrade: [`UPGRADE-4.0.md`](UPGRADE-4.0.md). Design: `docs/v4-local-scheduler.md`, data contract: `docs/v4-contract.md`.
+Requires LQDeck accepting connector major 4 (`supported_versions` [2, 3, 4]) **before** any project moves to `^4`.
+
+### Added
+- Local cron scheduler `lqcron` (Rust, `scheduler/`, `bin/lqcron` wrapper): `tick` every minute from crontab, one
+  supervisor process per run (`run-job`, process group, timeout, SIGTERM → SIGKILL), SQLite in WAL mode in
+  `scheduler.stateDir`, port of LQDeck's concurrency rules plus `maxParallel`, `resources` and a starvation barrier,
+  retries, `after` dependencies, `missed` occurrences, DST rules, lost-run detection, watched services
+  (watchdog / keepalive), deploy pause with TTL and `wait-slot`, shadow mode, remote commands from LQDeck,
+  and an outbox delivered by `lqcron deliver` with guaranteed delivery. LQDeck being down no longer affects
+  whether crons run.
+- `#[PullCron]`: `schedules` (per environment), `environments`, `resources`, `after`, `missed`,
+  `missedGraceMinutes`. The attribute is the only source of a cron's schedule.
+- `monitor-worker enqueue-due` — enqueues crons whose attribute schedule is due (replaces crunz tasks with
+  schedules, works without `lqcron`); `monitor-worker plan` — effective schedule per environment.
+- `monitor-worker export-definitions`, `redact-log`, `execute --local` (PHP side of `lqcron`).
+- `liquidMonitorConnector.scheduler` NEON section; `Cron::isCronDefined()`; `SchedulerHealth` health checks;
+  `LogRedactor`; `InterruptibleCronJobHandler`; `SchedulingFailedException` (implements `GuzzleException`) with
+  `QueueFullException`, `SchedulerUnavailableException`, `UnknownCronHandlerException`.
+- PHP side of the scheduler works with either `pdo_sqlite` or `sqlite3`.
+
+### Changed
+- **PHP >= 8.0** (was 8.1); symfony `^5.4` allowed.
+- **Breaking:** `ConcurrencyModeType` and `HealthCheckStatusEnum` are classes with constants instead of enums
+  (see UPGRADE-4.0.md for replacements of `->value`, `->name`, `from()`, `cases()`).
+- With `scheduler.enabled`, `schedulePullJob()` / `scheduleJob()` (pull crons), `isCronRunning()`,
+  `progressJob()` / `finishJob()` / `failJob()` in a local run use the local scheduler; `getLastCronJobLog()`
+  falls back to the last local run while LQDeck is unreachable.
+- `cronTiming` sent to LQDeck is the effective schedule for `scheduler.environment`.
+
+### Deprecated
+- `crunz/MonitorWorkerTasks.php` — use the crontab lines from the README; removed in the next major version.
+
+### Fixed
+- Native constant types (`const string`, PHP 8.3) in `src/Orchestrator/` broke loading on PHP 8.1 / 8.2.
+
 ## [3.2.4] — 2026-10-02
 
 ### Fixed

@@ -149,9 +149,21 @@ search:
 
 `workerHandlers: auto` zaregistruje všechny služby implementující `CronJobHandler` podle konvence názvu (`ImportHandler` → cron code `import`). Explicitní mapa je pořád možná místo `auto`.
 
-**2. Scheduler** — Crunz (doporučeno) nebo systemd / cron.
+**2. Spouštění** — dva řádky v crontabu (connector 4): `enqueue-due` zařadí crony, které jsou podle
+`#[PullCron]` splatné, a worker je převezme a spustí.
 
-*Crunz* — jeden řádek v host `tasks/MonitorWorkerTasks.php`:
+```cron
+* * * * * cd /srv/app/current && php vendor/bin/monitor-worker enqueue-due
+* * * * * cd /srv/app/current && php vendor/bin/monitor-worker run \
+  --bootstrap=vendor/liquiddesign/liquid-monitor-connector/bin/monitor-worker-nette-bootstrap.php \
+  --monitor-url=https://monitor.example/api/connector --api-key=PROJECT_KEY --max-runtime=55
+```
+
+S lokálním plánovačem (`scheduler.enabled`) oba řádky nahradí jediný `lqcron tick` — viz
+[Lokální plánovač `lqcron`](#lokální-plánovač-lqcron-connector-4).
+
+*Crunz* (**deprecated ve 4.x**, s další major verzí se odstraní; spouští jen worker, žádné rozvrhy) —
+jeden řádek v host `tasks/MonitorWorkerTasks.php`:
 
 ```php
 <?php declare(strict_types=1);
@@ -181,17 +193,17 @@ Ukázková NEON konfigurace: `examples/monitor-worker.neon.dist`.
 ### Code-managed pull crony (`#[PullCron]`)
 
 **Doporučený způsob**, jak pull crony zavádět — viz [Pull-model cron worker](#pull-model-cron-worker)
-výše. Cron nemusí existovat na monitoru předem — stačí handler s `#[PullCron]` atributem a jedno volání
-`$cron->schedulePullJob()`. Kód je zdroj pravdy: `name`, `description`, `repeatCount`,
-`concurrencyMode`, `timeout` a `maxQueueSize` se z atributu synchronizují do monitoru při každém
-volání; `active` zůstává admin-only kill switch a nesynchronizuje se.
+výše. **Atribut je jediný zdroj rozvrhu** (connector 4): co v něm stojí, to běží. Rozvrh se nepíše
+do crunz tasků, pomocných funkcí typu `*CronForEnvironment()` ani do adminu LQDecku.
 
 ```php
 use LiquidMonitorConnector\Worker\ConcurrencyModeType;
 use LiquidMonitorConnector\Worker\PullCron;
 
 #[PullCron(
-    schedule: '*/5 * * * *',
+    schedule: '*/30 * * * *',                 // všude, kde neplatí `schedules`
+    schedules: ['test' => '15 */4 * * *'],    // přepsání podle scheduler.environment
+    environments: ['production', 'test'],     // jinde se neplánuje (na vyžádání jde spustit dál)
     concurrencyMode: ConcurrencyModeType::Independent,
     timeout: 300,
 )]
@@ -201,19 +213,72 @@ final class UpdateCkpFloatingPricesHandler implements CronJobHandler
 }
 ```
 
-Crunz task, který jen naplánuje job (žádná ruční registrace cronu v adminu):
+Prostředí určuje `scheduler.environment` v NEON (`environment: %environment%` apod.). Splatné crony
+zařazuje `monitor-worker enqueue-due` (bez `lqcron`) nebo `lqcron tick` (s ním). Efektivní rozvrh
+vypíše:
 
-```php
-<?php declare(strict_types=1);
-
-/** @var Crunz\Schedule\Schedule $schedule */
-$schedule->run(static function () use ($cron): void {
-    $cron->schedulePullJob(UpdateCkpFloatingPricesHandler::class);
-})->everyFiveMinutes();
+```
+php vendor/bin/monitor-worker plan --environment=production --hours=24
 ```
 
-Handler se pak zaregistruje běžně (`workerHandlers: auto` / cron code `updateCkpFloatingPrices`) a
-`bin/monitor-worker` ho claimuje a spouští stejně jako ostatní pull crony.
+Výstup patří do PR, který rozvrh mění. Z aplikace jde job zařadit kdykoli
+(`$cron->schedulePullJob(Handler::class, $arguments, $delaySeconds)`); metadata (`name`,
+`description`, `repeatCount`, `concurrencyMode`, `timeout`, `maxQueueSize`, rozvrh) se do LQDecku
+synchronizují z atributu, `active` zůstává admin-only kill switch.
+
+Další pole atributu pro lokální plánovač: `resources` (skupiny prostředků), `after` (spustit po
+úspěchu jiného cronu), `missed` (`skip` / `once`) a `missedGraceMinutes`.
+
+### Lokální plánovač `lqcron` (connector 4)
+
+O tom, co a kdy se spustí, rozhoduje lokální binárka `lqcron` se SQLite; LQDeck jen dostává hlášení
+a jeho výpadek běh cronů neovlivní. Návrh a pravidla: [`docs/v4-local-scheduler.md`](docs/v4-local-scheduler.md),
+přesné tvary dat: [`docs/v4-contract.md`](docs/v4-contract.md).
+
+```neon
+liquidMonitorConnector:
+    scheduler:
+        enabled: true                 # false = vzdálený pull jako ve v3
+        shadow: false                 # true = jen spočítá, co by spustil (porovnání s v3)
+        environment: %environment%
+        stateDir: /srv/app/shared/lqcron   # mimo release slot, lokální disk, povinné
+        timezone: Europe/Prague
+        maxParallel: 3
+        resources:
+            qi: 1
+        logRedactor: null             # služba implementující LiquidMonitorConnector\Scheduler\LogRedactor
+        services:
+            productsDaemon:
+                command: [php, bin/products-daemon-watch.php]
+                mode: watchdog        # nebo keepalive
+```
+
+Crontab (jediný řádek, nahrazuje `enqueue-due`, worker i crunz):
+
+```cron
+* * * * * cd /srv/app/current && vendor/bin/lqcron tick --php=/usr/bin/php8.3 >> /dev/null 2>&1
+```
+
+Podmínky: PHP (i FPM, které joby zařazuje) potřebuje `ext-pdo_sqlite` nebo `ext-sqlite3`
+a SQLite ≥ 3.24; `stateDir` zapisuje uživatel crontabu i FPM (stejný uživatel, nebo sdílená skupina
+s `umask 0002`); žádné NFS. Joby z aplikace jde zařazovat jen na hostu plánovače.
+
+Deploy (blue/green):
+
+```
+vendor/bin/lqcron wait-slot <cílový slot> --timeout=1800   # před zápisem nového releasu
+vendor/bin/lqcron pause --drain=120 --ttl=1800
+# přepnutí current
+vendor/bin/lqcron sync; vendor/bin/lqcron resume            # resume vždy, i když sync selže
+```
+
+Provoz: `lqcron status`, `lqcron plan`, `lqcron logs <code|run>`, `lqcron run <code> --sync`,
+`lqcron cancel <run>`, `lqcron cron disable|enable <code>`, `lqcron flush`. Health check: služba
+`LiquidMonitorConnector\Scheduler\SchedulerHealth::checks()` (čte SQLite read-only, funguje i z FPM).
+Přerušitelný handler implementuje `InterruptibleCronJobHandler::interrupt()` (SIGTERM při timeoutu).
+
+Přechod existujícího projektu: `^4` + `enqueue-due` (rozvrhy do atributů) → `scheduler.shadow: true`
+na testu → `scheduler.enabled` na testu → produkce. Podrobně § 13.3 plánu a [`UPGRADE-4.0.md`](UPGRADE-4.0.md).
 
 ### Co zůstává v host projektu
 
@@ -221,7 +286,7 @@ Handler se pak zaregistruje běžně (`workerHandlers: auto` / cron code `update
 |---|---|
 | `*Handler.php` (business logika) | `bin/monitor-worker`, claim/heartbeat client |
 | `search` cesta ke handlerům | `CronJobHandler`, auto-discovery, universal bootstrap |
-| 1řádkový Crunz require (nebo cron CLI) | `crunz/MonitorWorkerTasks.php`, `MonitorWorkerLauncher` |
+| řádky v crontabu (`enqueue-due` + worker, nebo `lqcron tick`) | `monitor-worker enqueue-due` / `plan`, `lqcron`, `MonitorWorkerLauncher` |
 
 ### Legacy: ruční mapování handlerů
 

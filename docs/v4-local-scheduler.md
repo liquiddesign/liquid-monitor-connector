@@ -1,7 +1,7 @@
 # Connector v4 — lokální plánovač cronů (`lqcron`)
 
-> **Stav:** návrh specifikace, 2026-10-15, revize a audit 2026-10-16. Nic z toho zatím není
-> implementované. Vývoj na větvi `4.x`.
+> **Stav:** specifikace 2026-10-15, revize a audit 2026-10-16; implementováno na větvi `4.x` (connector: PHP + `scheduler/` v Rustu; LQDeck: ingest, režim `local`, příkazy).
+> Přesné tvary dat (SQLite, export, události, HTTP) drží [`v4-contract.md`](v4-contract.md).
 > **Vychází z:** connector 3.2.4 (větev `3.x`, `7796ed9`) a LQDeck `liquid-monitor-back` (`cfc619ce`).
 
 **Rozhodnuto (2026-10-15):**
@@ -26,8 +26,8 @@
 
 **Audit 2026-10-16** (nezávislý, druhé čtení):
 
-- **PHP 8.0 vychází zvlášť** (rozhodnuto): 4.0 drží `php >= 8.1` jako `3.x`; port na 8.0 mění
-  veřejné API (enumy), takže je to samostatná major verze — Příloha A.
+- ~~PHP 8.0 vychází zvlášť~~ — **přehodnoceno 2026-10-16: port na PHP 8.0 je součástí 4.0**
+  (`php >= 8.0`); změny veřejného API (enumy) nese tatáž major verze — Příloha A.
 - Doplněn **stavový automat běhu** (§ 7.0), **mapování událostí na tabulky LQDecku** (§ 8.4)
   a **přepnutí cronu na `local` a zpět** (§ 13.4) — bez nich hrozily dvojí nebo zablokované běhy,
   crony vrácené do `pull` a tichá ztráta triage.
@@ -100,10 +100,9 @@ hlídací procesy, `deliver` ani `sync` (§ 11.2). Kopie starší než 7 dní be
 ## 3. Distribuce a balíček
 
 - **Major verze 4.0 balíčku `liquiddesign/liquid-monitor-connector`**, žádné nové repo.
-- **PHP >= 8.1**, stejně jako `3.x`. Port na PHP 8.0 je samostatné vydání (Příloha A).
-  Typované konstanty (`const string`, PHP 8.3) dnes ve `src/Orchestrator/` požadavek 8.1 porušují
-  — opravuje se na `4.x` bez ohledu na Přílohu A (`3.x` se neřeší, § 16). CI pro `4.x`: matice 8.1 / 8.3 / 8.5
-  se spuštěním testů (`nette/tester`), PHPStan s `phpVersion: 80100`.
+- **PHP >= 8.0** — port podle Přílohy A je součástí 4.0 (rozhodnuto 2026-10-16). CI pro `4.x`:
+  matice 8.0 / 8.1 / 8.3 / 8.5 se spuštěním testů (`nette/tester`), běh s `--prefer-lowest` na 8.0,
+  PHPStan s `phpVersion: 80000`, PHPCompatibility sniff.
 - Binárka v Rustu (stejný stack jako `abel-products-daemon`), staticky linkovaná (musl):
   `bin/lqcron-linux-x86_64`, `bin/lqcron-linux-aarch64`. Builduje CI connectoru při release a výsledek
   se commituje do tagu (Composer Rust při instalaci nesestaví). Zdroják v `scheduler/` v tomtéž repu.
@@ -178,17 +177,18 @@ extension při kompilaci kontejneru (s `scheduler.enabled`) a `lqcron status` / 
   PHP-FPM. Jinak `stateDir` se setgid skupinou sdílenou oběma a `umask 0002` u všech zapisovatelů.
   WAL potřebuje právo zápisu do **adresáře** (soubory `-wal` a `-shm`), ne jen do databáze.
   Tick při každém průchodu ověří, že zapsat jde; když ne, health check hlásí CRITICAL.
-- **`ext-pdo_sqlite` v PHP, které joby zařazuje** — typicky FPM, nejen CLI. Balíček ho uvádí
-  v `suggest` (projekty bez plánovače ho nepotřebují); s `scheduler.enabled` bez něj kompilace
-  kontejneru selže. Stejně tak selže, je-li systémová `sqlite_version()` nižší než **3.24**
+- **`ext-pdo_sqlite` nebo `ext-sqlite3` v PHP, které joby zařazuje** — typicky FPM, nejen CLI.
+  Distribuce je balí nezávisle, proto PHP strana umí oba drivery (`pdo_sqlite` má přednost).
+  Balíček je uvádí v `suggest` (projekty bez plánovače je nepotřebují); s `scheduler.enabled` bez
+  obou kompilace kontejneru selže. Stejně tak selže, je-li systémová `sqlite_version()` nižší než **3.24**
   (minimum kontraktu, § 12.1).
 - **Žádné NFS ani jiný síťový FS.** WAL vyžaduje sdílenou paměť na jednom stroji; na síťovém FS se
   databáze tiše poškodí. `stateDir` je lokální disk hostu s plánovačem.
 - **PHP databázi nikdy nezakládá.** Zakládá a migruje ji jen `lqcron`. Chybí-li soubor (např. enqueue
-  na webovém nodu, kde plánovač neběží), PHP vyhodí `SchedulerUnavailable` — nevytvoří prázdnou
+  na webovém nodu, kde plánovač neběží), PHP vyhodí `SchedulerUnavailableException` — nevytvoří prázdnou
   databázi, kterou by nikdo nečetl. Existence souboru se kontroluje před otevřením.
 - **Víc webových nodů ve 4.0 podporované není.** Joby z aplikace se smí zařazovat jen na hostu
-  plánovače; na ostatních nodech zařazení selže výjimkou (`SchedulerUnavailable`), ne tiše.
+  plánovače; na ostatních nodech zařazení selže výjimkou (`SchedulerUnavailableException`), ne tiše.
   Zařazování přes síť z ostatních nodů je otevřená otázka (§ 16).
 
 ### 4.2 Jak binárka dostane konfiguraci
@@ -209,7 +209,8 @@ proto `--php` v crontabu (default `php` z `PATH`, který v cronu bývá minimál
 Změna NEONu platí po příštím `sync`: hned po `lqcron sync`, jinak po deployi nebo nejpozději za
 15 minut. `stateDir` z exportu se při každém ticku porovná s posledním známým; změna `stateDir`
 bez `lqcron tick --move-state` je chyba (CRITICAL), aby přepsání cesty v NEONu nezaložilo druhý
-plánovač s prázdnou frontou.
+plánovač s prázdnou frontou. Poslední `stateDir` si tick pamatuje mimo slot, per uživatel podle
+identity projektu (`url` + `apiKey`, kontrakt § 1), aby změnu poznal i čerstvý blue/green slot.
 
 ## 5. Definice cronů
 
@@ -222,10 +223,11 @@ ne popisný: co v něm stojí, to běží.
 
 Proč: dnes atribut jen posílá `cronTiming` do LQDecku jako popis a skutečný běh řídí crunz, takže
 se ty dva zdroje rozjedou a nikdo to nevidí. Ověřeno v ABELu (`abel-monorepo`, 2026-10-16):
-`MergadoPricesHandler` má `schedule: '*/30 * * * *'`, crunz ho ale spouští přes
+`MergadoPricesHandler` měl `schedule: '*/30 * * * *'`, crunz ho ale spouští přes
 `mergadoCronForEnvironment()` (`abel/tasks/bootstrap.php:112`) — produkce `30 * * * *`, test
-`15 */4 * * *`. Komentář v `FrequentTasks.php` i atribut slibují 30 minut, běží se jednou za hodinu,
-a LQDeck ukazuje rozvrh, který neplatí.
+`15 */4 * * *`. Komentář v `FrequentTasks.php` i atribut slibovaly 30 minut, běží se jednou za hodinu,
+a LQDeck ukazoval rozvrh, který neplatí (na větvi `test` ABELu srovnáno 2026-10-16). Úplné srovnání
+všech handlerů: `abel-monorepo/abel/docs/implementation-plans/2026-10-16-v4-rozvrhy-cronu.md`.
 
 Platí v obou režimech 4.x:
 
@@ -257,16 +259,24 @@ Na `3.x` se nic z toho nedělá (rozhodnuto 2026-10-16: všechny změny jen na `
 ### 5.1 Atribut `#[PullCron]` — rozšíření
 
 Stávající pole (`schedule`, `name`, `repeatCount`, `concurrencyMode`, `description`, `timeout`,
-`maxQueueSize`) zůstávají. Nová:
+`maxQueueSize`) zůstávají. `schedule` nově přijímá i **seznam výrazů**, když jeden výraz rozvrh
+nepopíše (`['0 13 * * *', '15 23 * * *']`; v ABELu `ClearImportDataHandler`, `ExportQiItemsHandler`).
+Cron je splatný, když je splatný kterýkoli výraz, a zařadí se jednou. V exportu a v `cronTiming`
+LQDecku se výrazy spojí do jednoho řetězce oddělovačem ` | `. Nová pole:
 
 | Pole | Typ | Význam |
 |---|---|---|
-| `schedules` | `array<string, string>` | přepsání `schedule` podle `scheduler.environment` (`['test' => '50 0 * * *']`); nahrazuje `dailyAtForEnvironment()` a spol. |
-| `environments` | `list<string>\|null` | cron se plánuje jen v těchto prostředích; `null` = všude. Nahrazuje `->skip(isProductionEnvironment())`. Env-gate se pak píše sem i s `TODO(freelo …)`. |
+| `schedules` | `array<string, string\|list<string>>` | přepsání `schedule` podle `scheduler.environment` (`['test' => '50 0 * * *']`); nahrazuje `dailyAtForEnvironment()` a spol. |
+| `environments` | `list<string>\|null` | cron se plánuje jen v těchto prostředích; `null` = všude, `[]` = nikde (jen na vyžádání z aplikace, CLI nebo LQDecku). Nahrazuje `->skip(isProductionEnvironment())`. Env-gate se pak píše sem i s `TODO(freelo …)`. |
 | `resources` | `list<string>` | skupiny prostředků (§ 6.3) |
 | `after` | `class-string\|null` | spustit po úspěšném doběhnutí jiného cronu (náhrada `crons.cron_id` z adminu LQDecku, § 8.4) |
 | `missed` | `'skip'\|'once'` | co s během, který se nestihl naplánovat (server neběžel); default `skip` |
 | `missedGraceMinutes` | `int` | jak pozdě se běh ještě spustí jako „včas“; default 5 |
+
+**Klíče prostředí** jsou hodnoty `scheduler.environment` projektu, jak je projekt sám určuje (ABEL:
+`APP_ENV` = `production` / `testing` / `local`; crunz dnes rozlišoval podle `APP_URL`). Prostředí, které
+v `schedules` není, dostane `schedule` — při převodu je proto nutné vypsat i testovací a vývojová
+prostředí, kde má platit jiný rozvrh (`monitor-worker plan --environment=…`).
 
 Cron code se dál odvozuje z názvu třídy (`CronJobHandlerCode::fromClassName`), aby historie
 v LQDecku navázala.
@@ -320,7 +330,7 @@ příkaz „spustit teď“ z LQDecku (§ 8.3), závislost `after`, opakování 
 Tabulka `jobs` (obdoba `cron_jobs`): `available_at` (zpoždění), `arguments`, `attempt`, `source`.
 
 - `maxQueueSize`: `null` znamená **10** (jako LQDeck, `monitor.default_max_queue_size`). Počítají se
-  i odložené joby. Při plné frontě se zařazení odmítne výjimkou `QueueFull` (§ 9) a pošle se `job.rejected`.
+  i odložené joby. Při plné frontě se zařazení odmítne výjimkou `QueueFullException` (§ 9) a pošle se `job.rejected`.
 - Opakování a `after` frontový limit obcházejí (jako dnes).
 - Job čekající déle než 6 h **a už dostupný** (`available_at <= now`) se smaže s `job.stale`.
   Oproti LQDecku se nemažou odložené joby, kterým zpoždění ještě neuplynulo. **Doba pauzy (§ 11.2)
@@ -505,6 +515,10 @@ dostane všechno, ve stejném pořadí, s původními časy.
 - **Otrávená událost neblokuje frontu.** Vrátí-li LQDeck 5xx pětkrát po sobě na dávku se stejným
   prvním `seq`, deliver dávku půlí jako u 413, až najde jedinou událost, na které server padá.
   Ta dostane `poisoned_at`, běžné dávky ji přeskakují a zkouší se samostatně jednou za hodinu.
+  Totéž platí pro opakované dočasné odmítnutí (`permanent: false`) jedné události v dávkách, kde
+  jiné události prošly (s vlastním odkladem a izolační sondou); dávka bez jediného přijetí je
+  výpadek LQDecku, ne otrávená událost.
+  Stejně se odloží událost, kterou LQDeck pětkrát po sobě odmítne dočasně (`permanent: false`).
   Nemaže se; hlásí se v heartbeatu (`poisoned_count`) a jako health WARNING.
 - **Strop velikosti události: 1 MB** (po kompresi). Hlídá se už při zápisu do outboxu — výsledek
   (§ 7.4) a konec logu se ořežou dřív, takže událost nad stropem vzniknout nemá; kdyby přesto,
@@ -677,9 +691,9 @@ Pravidla, která z toho plynou:
 | `getCronJobLogsStats` / `getCronOverview` | GET LQDeck | **GET LQDeck beze změny** — statistiky počítá jen server |
 | `log()` | POST `/log` | beze změny |
 
-**Chyby při zařazení.** Všechny výjimky lokálního zařazení (`QueueFull`, `SchedulerUnavailable`,
-neznámý handler, `SQLITE_BUSY` po vypršení `busy_timeout`) mají společného předka
-`SchedulingFailedException`, který **implementuje `GuzzleHttp\Exception\GuzzleException`**. Dnešní
+**Chyby při zařazení.** Všechny výjimky lokálního zařazení (`QueueFullException`, `SchedulerUnavailableException`,
+`UnknownCronHandlerException`, `SQLITE_BUSY` po vypršení `busy_timeout` jako `SchedulerUnavailableException`)
+mají společného předka `SchedulingFailedException`, který **implementuje `GuzzleHttp\Exception\GuzzleException`**. Dnešní
 volající, kteří chytají `GuzzleException` kvůli 429 / výpadku LQDecku (ABEL `QiOrderService`),
 tak chytí i lokální selhání a objednávka nespadne na 500. Z FPM se používá `busy_timeout` **1 s**
 (z CLI 5 s), aby request nečekal na zámek SQLite dlouho.
@@ -754,7 +768,9 @@ lze tedy i při výpadku LQDecku, a vzdálené zapnutí nepřebije lokální vyp
    binárky ve `stateDir/bin` (§ 2).
 2. `lqcron pause --drain=120 --ttl=1800` — nové joby se nespouštějí, běžící mají 2 min na doběhnutí
    (dlouhé běhy doběhnou ve starém slotu dál, nic se nezabíjí). TTL je pojistka: když deploy
-   uprostřed spadne, plánovač se po 30 min sám rozjede (s událostí a WARNINGem).
+   uprostřed spadne, plánovač se po 30 min sám rozjede (s událostí a WARNINGem). Výskyty rozvrhu
+   během pauzy se nezařazují; po resume se s nimi naloží jako po krátkém výpadku podle `missed`
+   (jeden souhrn `run.missed`, u `once` jeden běh), takže po dlouhé pauze nenaběhne fronta.
 3. přepnutí `current`,
 4. `lqcron sync; lqcron resume` — **`resume` vždy**, i když `sync` selže: stará sada definic platí
    dál a pozastavený plánovač je horší než plánovač se starými definicemi.
@@ -847,7 +863,7 @@ tick a PHP z nového, a po rollbacku stará binárka nad novým schématem. Prot
   s minor/major verzí balíčku a v release notes musí stát, že rollback přes ni nejde.
 - Každý zapisovatel (tick, `run-job`, `deliver`, `sync`, PHP enqueue/progress/`execute`) při otevření
   ověří `schema_version_který_znám >= min_reader_version`. Když ne, nezapíše nic: tick odmítne běžet
-  (health CRITICAL), PHP enqueue vyhodí `SchedulerUnavailable`, `execute` zapíše jen marker
+  (health CRITICAL), PHP enqueue vyhodí `SchedulerUnavailableException`, `execute` zapíše jen marker
   (§ 7.0) a běh dořeší novější tick.
 - Rollback mezi verzemi se stejnou `min_reader_version` tedy plánovač nezastaví.
 
@@ -938,14 +954,14 @@ výjimka — špatně nastavený node je tak vidět.
    `AdminMcpParityTest`): přepne `local` crony projektu na `pull` a nastaví `local_blocked_at`.
    Dokud je blokace nastavená, `definitions.sync` s `mode: local` se uloží, ale **režim nepřepne**
    — zapomenutý `lqcron` tak crony zpátky nepřetáhne. Blokaci ruší člověk v adminu.
+   Zrušení blokace vydá příkaz `definitions.resync`, plánovač znovu pošle definice a crony se přepnou zpět.
 
 ## 14. Rozsah verzí
 
 | Verze | Obsah |
 |---|---|
-| **4.0** (PHP >= 8.1) | **jako první** `monitor-worker enqueue-due` + `monitor-worker plan`, `schedules` / `environments` v atributu — jediný zdroj rozvrhu i bez `lqcron` (§ 5.0); dále tick + hlídací procesy se stavovým automatem, SQLite, port pravidel souběhu, `maxParallel`, `resources`, `schedules` / `environments`, `after`, `missed`, timeout přes skupinu procesů, ztracené běhy, outbox s odesíláním v samostatném `lqcron deliver`, příkazy z LQDecku, hlídané služby (watchdog/keepalive), CLI, pauza s TTL a hlídání slotu pro deploy, `SchedulerHealth`, stínový režim, bariéra proti vyhladovění, kompatibilita schématu (`min_reader_version`). V LQDecku: `supported_versions` 4 (napřed, § 13.1), ingest a schéma (§ 8.4), přepnutí a návrat (§ 13.4), příkazy s oprávněními, politika opožděných alertů, report stínového režimu |
+| **4.0** (PHP >= 8.0) | **jako první** `monitor-worker enqueue-due` + `monitor-worker plan`, `schedules` / `environments` v atributu — jediný zdroj rozvrhu i bez `lqcron` (§ 5.0); dále tick + hlídací procesy se stavovým automatem, SQLite, port pravidel souběhu, `maxParallel`, `resources`, `schedules` / `environments`, `after`, `missed`, timeout přes skupinu procesů, ztracené běhy, outbox s odesíláním v samostatném `lqcron deliver`, příkazy z LQDecku, hlídané služby (watchdog/keepalive), CLI, pauza s TTL a hlídání slotu pro deploy, `SchedulerHealth`, stínový režim, bariéra proti vyhladovění, kompatibilita schématu (`min_reader_version`). V LQDecku: `supported_versions` 4 (napřed, § 13.1), ingest a schéma (§ 8.4), přepnutí a návrat (§ 13.4), příkazy s oprávněními, politika opožděných alertů, report stínového režimu. Port na PHP 8.0 (Příloha A) |
 | **4.1** | opakování s backoffem (`retry`, `backoff`), škálování job-workeru jako služba, metriky běhů a alert na neobvykle dlouhý běh v LQDecku; v LQDecku alert „rozvrh nesedí“ (skutečné běhy neodpovídají `timing`), UI pro vynechané běhy a stínový režim |
-| **Port na PHP 8.0** | samostatná major verze po 4.0 — Příloha A; s ní se odstraní `crunz/MonitorWorkerTasks.php` |
 | **později** | sloučení s aplikační frontou jobů (`JobRepository` / `bin/job-worker.php`) do jednoho vykonavatele |
 
 ## 15. Záměrné odchylky od dnešního LQDecku
@@ -965,22 +981,18 @@ výjimka — špatně nastavený node je tak vidět.
 
 ## 16. Otevřené otázky
 
-1. `branch-alias` v `composer.json` na `4.x` (`"4.x-dev"`).
-2. Prahy k doladění ve stínovém provozu ABELu: `starvationSeconds` (300 s), práh opožděné události
+1. Prahy k doladění ve stínovém provozu ABELu: `starvationSeconds` (300 s), práh opožděné události
    (15 min), `runLogMaxBytes` (50 MB), smíření běhů po 3 heartbeatech.
-3. **Zúžení rozsahu 4.0** (návrh auditu, nerozhodnuto): přesunout do 4.1 `keepalive` služby
-   (watchdog stačí), `resources`, vzdálené příkazy kromě `cron.set_active`, `missed: once`,
-   `lqcron run --sync` a attestation / `verify`.
-4. Zařazování jobů z webových nodů bez plánovače (§ 4.1) — HTTP endpoint aplikace, nebo zařazení
-   přes LQDeck jako relé? Ve 4.0 nepodporované.
-5. Číslo verze portu na PHP 8.0 (Příloha A): vlastní major hned po 4.0, nebo až spolu s další
-   velkou změnou.
-6. Vydat `enqueue-due` dřív (samostatná 4.0, `lqcron` jako 4.1), aby ABEL nečekal na celý
-   plánovač, nebo všechno najednou v 4.0?
+2. Zařazování jobů z webových nodů bez plánovače (§ 4.1) — ve 4.0 nepodporované (rozhodnuto);
+   HTTP endpoint aplikace, nebo relé přes LQDeck, zůstává na později.
 
 Uzavřeno 2026-10-15: větev `4.x` z `3.x`; push crony zůstávají podporované; statistiky jen
 v LQDecku; zaručené doručení událostí; `missed` default `skip`; LQDeck bez nové branche, jen
 zpětně kompatibilní rozšíření.
+
+Uzavřeno 2026-10-16 (uživatel): **plný rozsah 4.0** (bez zúžení podle auditu); **jedno vydání 4.0**
+(`enqueue-due` se neodděluje, kód je jen hotový dřív); **port na PHP 8.0 přímo ve 4.0**; zařazování
+z webových nodů ve 4.0 nepodporované; `branch-alias` `dev-4.x` → `4.x-dev`.
 
 Uzavřeno 2026-10-16 (review): LQDeck přidá major 4 do `supported_versions` jako první krok, nezávisle
 na ingestu (§ 13.1); kompatibilita schématu přes `min_reader_version` (§ 12.1); heartbeat mimo outbox;
@@ -988,17 +1000,16 @@ opožděné události bez jednotlivých alertů; PHP databázi nezakládá; rozv
 (`enqueue-due` + `schedules` / `environments`, § 5.0); **všechny změny jen na `4.x`, `3.x` se
 neřeší** (žádné backporty ani vydání 3.3).
 
-Uzavřeno 2026-10-16 (audit): **4.0 zůstává na PHP >= 8.1, port na PHP 8.0 vychází zvlášť**
-(Příloha A); rozhraní `CronJobHandler` se nemění, výsledek jde přes `finishJob()` (§ 7.4);
+Uzavřeno 2026-10-16 (audit, PHP 8.0 přehodnoceno týž den): ~~4.0 zůstává na PHP >= 8.1~~; rozhraní `CronJobHandler` se nemění, výsledek jde přes `finishJob()` (§ 7.4);
 `created_at` v `cron_job_logs` = čas přijetí (§ 8.4); stínový režim režim cronů nemění (§ 13.4);
 `instance_id` místo `host_id` (§ 11.3).
 
 ---
 
-## Příloha A — Port na PHP 8.0 (samostatné vydání)
+## Příloha A — Port na PHP 8.0 (součást 4.0)
 
-Původně součást 4.0, oddělené 2026-10-16: s odstraněním SPOF nesouvisí, je drahé (Orchestrator
-a Telemetry jsou psané pro 8.4) a mění veřejné API, takže potřebuje vlastní major verzi.
+Audit ho 2026-10-16 navrhl oddělit (s odstraněním SPOF nesouvisí, mění veřejné API); uživatel
+týž den rozhodl, že je **součástí 4.0** — změny API tak nese jedna major verze.
 Cíl: aby šel connector nasadit i na projekty, které zůstaly na PHP 8.0.
 
 Konstrukce ve `src/` (stav 3.2.4), které 8.0 nezná:
