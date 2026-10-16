@@ -11,10 +11,10 @@ use Symfony\Component\Process\Process;
 final class TmuxClaudeDriver
 {
 	/** Microseconds to wait after pasting/typing before sending Enter (Claude REPL must absorb input). */
-	private const int ENTER_DELAY_US = 300000;
+	private const ENTER_DELAY_US = 300000;
 
 	/** Use tmux paste-buffer for multiline or long payloads (send-keys + Enter is unreliable). */
-	private const int PASTE_BUFFER_MIN_LENGTH = 400;
+	private const PASTE_BUFFER_MIN_LENGTH = 400;
 
 	public function __construct(private readonly string $claudeBinary = 'claude')
 	{

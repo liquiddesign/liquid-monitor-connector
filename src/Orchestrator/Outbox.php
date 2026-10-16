@@ -19,10 +19,10 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class Outbox
 {
 	/** Where the outbox lives, relative to the MAIN repo root. */
-	public const string OUTBOX_RELATIVE_PATH = '.orchestrator/outbox';
+	public const OUTBOX_RELATIVE_PATH = '.orchestrator/outbox';
 
 	/** Order in which the finalization calls are replayed. */
-	public const array STEPS = ['create_turn', 'post_result', 'patch_task', 'create_event', 'patch_session'];
+	public const STEPS = ['create_turn', 'post_result', 'patch_task', 'create_event', 'patch_session'];
 
 	/**
 	 * @param array<string, mixed> $entry

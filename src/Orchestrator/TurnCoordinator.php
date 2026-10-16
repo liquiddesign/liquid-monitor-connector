@@ -12,7 +12,7 @@ use Symfony\Component\Process\Process;
 final class TurnCoordinator
 {
 	/** Where the agent writes its milestone, relative to the worktree root. */
-	public const string MILESTONE_RELATIVE_PATH = '.orchestrator/milestone.json';
+	public const MILESTONE_RELATIVE_PATH = '.orchestrator/milestone.json';
 
 	public function __construct(
 		private readonly MonitorClient $monitor,

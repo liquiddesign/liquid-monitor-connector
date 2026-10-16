@@ -16,19 +16,19 @@ use Nette\Utils\Json;
 final class PolicySettingsWriter
 {
 	/** Where the generated Claude settings file lives, relative to the worktree root. */
-	public const string SETTINGS_RELATIVE_PATH = '.orchestrator/claude-settings.json';
+	public const SETTINGS_RELATIVE_PATH = '.orchestrator/claude-settings.json';
 
 	/** Where the guard policy lives, relative to the worktree root. */
-	public const string POLICY_RELATIVE_PATH = '.orchestrator/policy.json';
+	public const POLICY_RELATIVE_PATH = '.orchestrator/policy.json';
 
 	/** Git subcommands denied in repo mode when the project does not override them. */
-	public const array DEFAULT_DENY_GIT_OPERATIONS = ['commit', 'checkout', 'switch', 'reset', 'stash'];
+	public const DEFAULT_DENY_GIT_OPERATIONS = ['commit', 'checkout', 'switch', 'reset', 'stash'];
 
 	/** Always-allowed read tools so the agent can explore the repo even with an empty monitor allow-list. */
-	public const array BASELINE_ALLOWED_TOOLS = ['Read', 'Grep', 'Glob'];
+	public const BASELINE_ALLOWED_TOOLS = ['Read', 'Grep', 'Glob'];
 
 	/** Control files the agent must never edit (milestone.json stays writable). */
-	private const array PROTECTED_RELATIVE_PATHS = [
+	private const PROTECTED_RELATIVE_PATHS = [
 		'.orchestrator/turn-state.json',
 		'.orchestrator/policy.json',
 		'.orchestrator/claude-settings.json',

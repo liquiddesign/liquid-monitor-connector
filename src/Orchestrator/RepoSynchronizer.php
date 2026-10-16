@@ -15,7 +15,7 @@ use Symfony\Component\Process\Process;
  */
 final class RepoSynchronizer
 {
-	private const int TIMEOUT = 300;
+	private const TIMEOUT = 300;
 
 	/**
 	 * True when the working tree has no modified tracked files outside .orchestrator/.

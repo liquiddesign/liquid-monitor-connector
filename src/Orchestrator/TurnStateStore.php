@@ -16,7 +16,7 @@ use Nette\Utils\JsonException;
 final class TurnStateStore
 {
 	/** Where the open-turn state lives, relative to the worktree root. */
-	public const string TURN_STATE_RELATIVE_PATH = '.orchestrator/turn-state.json';
+	public const TURN_STATE_RELATIVE_PATH = '.orchestrator/turn-state.json';
 
 	/**
 	 * @return array<string, mixed>|null Null when no turn is open for the worktree.
