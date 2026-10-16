@@ -5,7 +5,15 @@ declare(strict_types=1);
 
 namespace LiquidMonitorConnector\Bin;
 
+// enqueue-due evaluates the minute in which the process started, before anything
+// slow (autoload, container boot) runs — docs/v4-local-scheduler.md § 5.0.
+$startedAt = \time();
+
 use LiquidMonitorConnector\Console\ConsoleCompat;
+use LiquidMonitorConnector\Worker\EnqueueDueCommand;
+use LiquidMonitorConnector\Worker\ExportDefinitionsCommand;
+use LiquidMonitorConnector\Worker\PlanCommand;
+use LiquidMonitorConnector\Worker\RedactLogCommand;
 use LiquidMonitorConnector\Worker\WorkerClient;
 use LiquidMonitorConnector\Worker\WorkerExecuteCommand;
 use LiquidMonitorConnector\Worker\WorkerRunCommand;
@@ -127,7 +135,11 @@ foreach ($rawArgs as $arg) {
 
 $wantsHelp = \in_array('--help', $rawArgs, true) || \in_array('-h', $rawArgs, true);
 
-if (!$wantsHelp && $commandName !== 'execute' && ($opts['monitor-url'] === '' || $opts['api-key'] === '')) {
+// Only the v3 `run` loop talks to the monitor with CLI credentials; the other
+// commands read the NEON config from the application's container.
+$commandsWithoutCredentials = ['execute', 'enqueue-due', 'plan', 'export-definitions', 'redact-log', 'list', 'help'];
+
+if (!$wantsHelp && !\in_array($commandName, $commandsWithoutCredentials, true) && ($opts['monitor-url'] === '' || $opts['api-key'] === '')) {
 	\fwrite(\STDERR, "monitor-worker: --monitor-url and --api-key are required for run (or set MONITOR_URL/MONITOR_API_KEY)\n");
 	exit(1);
 }
@@ -141,6 +153,10 @@ $client = new WorkerClient(
 $app = new Application('monitor-worker', '1.0.0');
 ConsoleCompat::addCommand($app, new WorkerRunCommand($client, $workerScript));
 ConsoleCompat::addCommand($app, new WorkerExecuteCommand());
+ConsoleCompat::addCommand($app, new EnqueueDueCommand($startedAt));
+ConsoleCompat::addCommand($app, new PlanCommand());
+ConsoleCompat::addCommand($app, new ExportDefinitionsCommand());
+ConsoleCompat::addCommand($app, new RedactLogCommand());
 
 if ($commandName === null) {
 	$app->setDefaultCommand('run', true);

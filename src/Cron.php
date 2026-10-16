@@ -6,6 +6,11 @@ namespace LiquidMonitorConnector;
 
 use GuzzleHttp\Client;
 use LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException;
+use LiquidMonitorConnector\Scheduler\CronDefinitionCatalog;
+use LiquidMonitorConnector\Scheduler\Exceptions\SchedulerUnavailableException;
+use LiquidMonitorConnector\Scheduler\LocalQueue;
+use LiquidMonitorConnector\Scheduler\LocalRunContext;
+use LiquidMonitorConnector\Scheduler\SchedulerConfig;
 use LiquidMonitorConnector\Tasks\ExceptionToJsonArray;
 use LiquidMonitorConnector\Worker\CronJobHandlerCode;
 use LiquidMonitorConnector\Worker\PullCron;
@@ -24,12 +29,15 @@ use Tracy\ILogger;
  *     type: string,
  *     created_at: string,
  *     updated_at: string,
- *     cron_id: int,
- *     job_id: int,
- *     started_ts: string,
- *     finished_ts: string,
+ *     cron_id: int|null,
+ *     job_id: int|null,
+ *     started_ts: string|null,
+ *     finished_ts: string|null,
  *     repeatCount: int,
- *     timeout: int
+ *     timeout: int|null,
+ *     uuid?: string,
+ *     outcome?: string,
+ *     source?: string
  * }
  */
 class Cron
@@ -56,6 +64,13 @@ class Cron
 	private Request $httpRequest;
 
 	private string|null $currentCronCode = null;
+
+	private SchedulerConfig|null $schedulerConfig = null;
+
+	private CronDefinitionCatalog|null $catalog = null;
+
+	/** Set only with `scheduler.enabled` outside shadow mode: pull jobs go to lqcron, not LQDeck. */
+	private LocalQueue|null $localQueue = null;
 	
 	public function __construct(Request $httpRequest)
 	{
@@ -98,8 +113,56 @@ class Cron
 		$this->verifyTls = $verifyTls;
 	}
 
+	/**
+	 * Wires the local scheduler (connector 4). Without a local queue every call
+	 * behaves as in v3.
+	 */
+	public function setScheduler(SchedulerConfig $config, CronDefinitionCatalog $catalog, LocalQueue|null $localQueue = null): void
+	{
+		$this->schedulerConfig = $config;
+		$this->catalog = $catalog;
+		$this->localQueue = $localQueue;
+	}
+
+	public function getLocalQueue(): LocalQueue|null
+	{
+		return $this->localQueue;
+	}
+
+	public function getCatalog(): CronDefinitionCatalog|null
+	{
+		return $this->catalog;
+	}
+
+	/**
+	 * Whether a code-managed cron with this code exists. With the local scheduler
+	 * it asks lqcron's last export, otherwise the handlers compiled into the
+	 * container — never LQDeck, so it works while LQDeck is down.
+	 */
+	public function isCronDefined(string $cronCode): bool
+	{
+		if ($this->localQueue !== null) {
+			try {
+				return $this->localQueue->isCronDefined($cronCode);
+			} catch (SchedulerUnavailableException) {
+				// Fall back to the compiled handlers below.
+			}
+		}
+
+		return $this->catalog !== null && $this->catalog->has($cronCode);
+	}
+
+	/**
+	 * Active run or a queued job. Local crons are answered by lqcron's database,
+	 * push crons (and everything without the local scheduler) by LQDeck.
+	 * @throws \LiquidMonitorConnector\Scheduler\Exceptions\SchedulerUnavailableException
+	 */
 	public function isCronRunning(string $cronCode): bool
 	{
+		if ($this->localQueue !== null && $this->catalog !== null && $this->catalog->has($cronCode)) {
+			return $this->localQueue->isCronRunning($cronCode);
+		}
+
 		$client = new Client();
 
 		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/is-running", [
@@ -121,11 +184,22 @@ class Cron
 	{
 		$client = new Client();
 
-		$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/last-job-log", [
-			'http_errors' => false,
-			'query' => ['apiKey' => $this->getApiKey()],
-			'headers' => [Version::HEADER_NAME => Version::CURRENT],
-		]);
+		try {
+			$response = $client->get(Strings::before($this->getUrl(), 'connector') . "front/cron/$cronCode/last-job-log", [
+				'http_errors' => false,
+				'query' => ['apiKey' => $this->getApiKey()],
+				'headers' => [Version::HEADER_NAME => Version::CURRENT],
+			]);
+		} catch (\GuzzleHttp\Exception\GuzzleException $e) {
+			$local = $this->lastLocalRun($cronCode);
+
+			if ($local !== null) {
+				return $local;
+			}
+
+			throw $e;
+		}
+
 		$content = $response->getBody()->getContents();
 
 		if ($response->getStatusCode() === 200 && $content) {
@@ -134,6 +208,11 @@ class Cron
 			} catch (JsonException $e) {
 				return null;
 			}
+		}
+
+		// LQDeck unreachable or failing: the last local run is better than nothing (§ 9).
+		if ($response->getStatusCode() >= 500 || $response->getStatusCode() === 426) {
+			return $this->lastLocalRun($cronCode);
 		}
 
 		return null;
@@ -314,12 +393,23 @@ class Cron
 	 *   whose remote system is temporarily down — without it the retry job is claimed by the very
 	 *   next worker poll, seconds after the outage that caused it. Monitor-side cap is one day;
 	 *   a monitor deployed before this parameter existed ignores it and runs the job immediately.
+	 * With the local scheduler (`scheduler.enabled`) the job goes into lqcron's local
+	 * queue instead and LQDeck is not contacted at all; failures are then
+	 * {@see \LiquidMonitorConnector\Scheduler\Exceptions\SchedulingFailedException}
+	 * (a {@see \GuzzleHttp\Exception\GuzzleException}, so existing catch blocks still apply).
 	 * @throws \GuzzleHttp\Exception\GuzzleException
 	 * @throws \LiquidMonitorConnector\Exceptions\LiquidMonitorDisabledException
-	 * @throws \InvalidArgumentException When $handlerClass has no #[PullCron] attribute.
+	 * @throws \InvalidArgumentException When $handlerClass has no #[PullCron] attribute (remote queue).
 	 */
 	public function schedulePullJob(string $handlerClass, array|null $arguments = null, int|null $delaySeconds = null): void
 	{
+		if ($this->localQueue !== null) {
+			$uuid = $this->localQueue->enqueue($handlerClass, $arguments, $delaySeconds);
+			Debugger::log("Local cron job queued: $handlerClass ($uuid)", 'cron-schedule');
+
+			return;
+		}
+
 		$reflection = new \ReflectionClass($handlerClass);
 		$attributes = $reflection->getAttributes(PullCron::class);
 
@@ -336,10 +426,11 @@ class Cron
 		$params = [
 			'cronId' => $cronId,
 			'executionMode' => 'pull',
-			'cronTiming' => $pullCron->schedule,
+			'cronTiming' => $pullCron->scheduleFor($this->schedulerConfig?->environment)
+				?? \implode(PullCron::EXPRESSION_SEPARATOR, PullCron::normalizeExpressions($pullCron->schedule)),
 			'cronName' => $pullCron->name,
 			'cronRepeatCount' => $pullCron->repeatCount,
-			'cronConcurrencyMode' => $pullCron->concurrencyMode?->value,
+			'cronConcurrencyMode' => $pullCron->concurrencyMode,
 			'cronDescription' => $pullCron->description,
 			'cronTimeout' => $pullCron->timeout,
 			'cronMaxQueueSize' => $pullCron->maxQueueSize,
@@ -376,6 +467,14 @@ class Cron
 		array|null $arguments = null,
 		int|null $delaySeconds = null,
 	): void {
+		if ($this->localQueue !== null && $this->catalog !== null && $this->catalog->has($cronId)) {
+			$definition = $this->catalog->get($cronId);
+			\assert($definition !== null);
+			$this->schedulePullJob($definition->handlerClass, $arguments, $delaySeconds);
+
+			return;
+		}
+
 		$params = [
 			'cronId' => $cronId,
 			'timeout' => (int) \ini_get('max_execution_time'),
@@ -413,6 +512,14 @@ class Cron
 	 */
 	public function finishJob(array|\Exception|null|string $data = null): void
 	{
+		$local = LocalRunContext::current();
+
+		if ($local !== null) {
+			$local->finish($data);
+
+			return;
+		}
+
 		if (!$this->getJobId()) {
 			$cronCode = $this->currentCronCode ?? 'unknown';
 			Debugger::log("Cron job finished (not monitored): $cronCode", 'cron-finish');
@@ -432,6 +539,19 @@ class Cron
 	 */
 	public function progressJob(array|\Exception|null|string $data = null): void
 	{
+		$local = LocalRunContext::current();
+
+		if ($local !== null) {
+			try {
+				$local->progress($data);
+			} catch (\Throwable $e) {
+				// Progress must never fail the job it reports on.
+				Debugger::log($e, 'cron-progress');
+			}
+
+			return;
+		}
+
 		if (!$this->getJobId()) {
 			return;
 		}
@@ -446,6 +566,14 @@ class Cron
 	 */
 	public function failJob(array|\Exception|null|string $data = null): void
 	{
+		$local = LocalRunContext::current();
+
+		if ($local !== null) {
+			$local->fail($data);
+
+			return;
+		}
+
 		if (!$this->getJobId()) {
 			$cronCode = $this->currentCronCode ?? 'unknown';
 			$dataInfo = $data ? ' - ' . \json_encode($this->processData($data)) : '';
@@ -572,5 +700,21 @@ class Cron
 	protected function send(string $url, string|null $apiKey, array $params, bool $throw = false): void
 	{
 		(new MonitorHttpClient($this->verifyTls))->post($url, $apiKey, $this->isEnabled(), ['jobId' => $this->getJobId()] + $params, $throw);
+	}
+
+	/**
+	 * @return JobLogArray|null
+	 */
+	private function lastLocalRun(string $cronCode): array|null
+	{
+		if ($this->localQueue === null) {
+			return null;
+		}
+
+		try {
+			return $this->localQueue->lastRun($cronCode);
+		} catch (SchedulerUnavailableException) {
+			return null;
+		}
 	}
 }
