@@ -2,7 +2,7 @@
 name = "lqcron"
 # Verze binárky = verze balíčku liquiddesign/liquid-monitor-connector (plán § 3).
 # Workflow `release` ji přepíše na vydávanou verzi.
-version = "4.0.0-dev"
+version = "4.0.0"
 edition = "2024"
 description = "Lokální plánovač cronů connectoru LQDeck v4 (docs/v4-local-scheduler.md)"
 license = "MIT"
