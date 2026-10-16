@@ -20,7 +20,7 @@ $base = \sys_get_temp_dir() . '/reposync-' . \getmypid() . '-' . \uniqid();
 $remote = $base . '/remote.git';
 $work = $base . '/work';
 $work2 = $base . '/work2';
-@\mkdir($base, 0o777, true);
+@\mkdir($base, 0777, true);
 
 // Bare remote + a working clone with one commit on main.
 $run(['git', 'init', '--bare', '-b', 'main', $remote]);
@@ -41,7 +41,7 @@ Assert::true($sync->isClean($work));
 // so they cannot pollute the agent's turn diff (e.g. deployment artifacts under
 // .claude/, local notes).
 \file_put_contents($work . '/dirty.txt', "x\n");
-@\mkdir($work . '/.claude/skills/lmo', 0o777, true);
+@\mkdir($work . '/.claude/skills/lmo', 0777, true);
 \file_put_contents($work . '/.claude/skills/lmo/SKILL.md', "x\n");
 Assert::true($sync->isClean($work));
 \unlink($work . '/dirty.txt');
@@ -54,7 +54,7 @@ $run(['git', '-C', $work, 'checkout', '--', 'README.md']);
 Assert::true($sync->isClean($work));
 
 // Changes under .orchestrator/ are ignored by the clean check.
-@\mkdir($work . '/.orchestrator', 0o777, true);
+@\mkdir($work . '/.orchestrator', 0777, true);
 \file_put_contents($work . '/.orchestrator/turn-state.json', "{}\n");
 \file_put_contents($work . '/.orchestrator/policy.json', "{}\n");
 Assert::true($sync->isClean($work));

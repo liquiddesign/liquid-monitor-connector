@@ -11,7 +11,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 final class OrchestratorRunReporter
 {
-	public function __construct(private readonly OutputInterface $output)
+	public function __construct(private OutputInterface $output)
 	{
 	}
 

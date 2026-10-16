@@ -16,7 +16,7 @@ final class TmuxClaudeDriver
 	/** Use tmux paste-buffer for multiline or long payloads (send-keys + Enter is unreliable). */
 	private const PASTE_BUFFER_MIN_LENGTH = 400;
 
-	public function __construct(private readonly string $claudeBinary = 'claude')
+	public function __construct(private string $claudeBinary = 'claude')
 	{
 	}
 

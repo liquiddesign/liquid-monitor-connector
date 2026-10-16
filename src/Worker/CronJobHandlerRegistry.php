@@ -9,7 +9,7 @@ final class CronJobHandlerRegistry
 	/**
 	 * @param array<string, \LiquidMonitorConnector\Worker\CronJobHandler> $handlers
 	 */
-	public function __construct(private readonly array $handlers)
+	public function __construct(private array $handlers)
 	{
 	}
 

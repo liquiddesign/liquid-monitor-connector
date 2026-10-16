@@ -9,12 +9,12 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class PendingMessageDeliverer
 {
 	public function __construct(
-		private readonly MonitorClient $monitor,
-		private readonly TmuxClaudeDriver $tmux,
-		private readonly TurnCoordinator $coordinator,
-		private readonly TurnStateStore $turnStates,
-		private readonly ContextBundles $bundles,
-		private readonly PolicySettingsWriter $policyWriter,
+		private MonitorClient $monitor,
+		private TmuxClaudeDriver $tmux,
+		private TurnCoordinator $coordinator,
+		private TurnStateStore $turnStates,
+		private ContextBundles $bundles,
+		private PolicySettingsWriter $policyWriter,
 	) {
 	}
 

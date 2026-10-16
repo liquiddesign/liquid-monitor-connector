@@ -119,7 +119,7 @@ Assert::same($key($payload, 'sql', $hash)[0], $payload['spans'][0][1]);
 Assert::same(3000, $payload['spans'][0][3]);
 
 // --- Dlouhé SQL s literály: normalizuje se před hashem, varianty jdou pod jedním `h:<crc32>`. ---
-Recorder::setKeyNormalizer('sql', LiquidMonitorConnector\Telemetry\StormBridge::normalizeSql(...));
+Recorder::setKeyNormalizer('sql', Closure::fromCallable([LiquidMonitorConnector\Telemetry\StormBridge::class, 'normalizeSql']));
 $transport = new MemoryTransport();
 Recorder::start($config(['sampleRate' => 1.0]), $transport);
 $variant = static fn (string $uuid): string => 'SELECT ' . \str_repeat('this.col, ', 30) . "this.uuid FROM t WHERE uuid IN ('{$uuid}', 'x') AND price > 10";
@@ -159,7 +159,7 @@ Assert::count(5, $payload['spans']);
 Assert::same(5, $payload['ds']);
 
 // --- Přetečení s normalizací: varianty téhož dotazu se slijí, `_other` až nad dvojnásobkem stropu. ---
-Recorder::setKeyNormalizer('sql', LiquidMonitorConnector\Telemetry\StormBridge::normalizeSql(...));
+Recorder::setKeyNormalizer('sql', Closure::fromCallable([LiquidMonitorConnector\Telemetry\StormBridge::class, 'normalizeSql']));
 $transport = new MemoryTransport();
 Recorder::start($config(['maxKeysPerType' => 3]), $transport);
 

@@ -11,7 +11,7 @@ Tester\Environment::setup();
 
 $store = new TurnStateStore();
 $worktree = \sys_get_temp_dir() . '/turn-state-test-' . \getmypid();
-@\mkdir($worktree, 0o777, true);
+@\mkdir($worktree, 0777, true);
 
 // No state yet
 Assert::null($store->read($worktree));

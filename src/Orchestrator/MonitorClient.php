@@ -12,9 +12,9 @@ final class MonitorClient
 {
 	private Client $client;
 
-	private readonly string $monitorUrl;
+	private string $monitorUrl;
 
-	public function __construct(string $monitorUrl, private readonly string $apiKey, int $timeoutSeconds = 60)
+	public function __construct(string $monitorUrl, private string $apiKey, int $timeoutSeconds = 60)
 	{
 		$this->monitorUrl = \rtrim($monitorUrl, '/');
 		$this->client = new Client([

@@ -15,11 +15,11 @@ final class TurnCoordinator
 	public const MILESTONE_RELATIVE_PATH = '.orchestrator/milestone.json';
 
 	public function __construct(
-		private readonly MonitorClient $monitor,
-		private readonly TmuxClaudeDriver $tmux,
-		private readonly PathGuard $pathGuard,
-		private readonly TurnStateStore $turnStates,
-		private readonly Outbox $outbox,
+		private MonitorClient $monitor,
+		private TmuxClaudeDriver $tmux,
+		private PathGuard $pathGuard,
+		private TurnStateStore $turnStates,
+		private Outbox $outbox,
 	) {
 	}
 

@@ -16,7 +16,7 @@ namespace LiquidMonitorConnector\Orchestrator;
  */
 final class ContextBundles
 {
-	public function __construct(private readonly ?string $monitorUrl = null, private readonly ?string $apiKey = null,)
+	public function __construct(private ?string $monitorUrl = null, private ?string $apiKey = null,)
 	{
 	}
 

@@ -1,5 +1,9 @@
 parameters:
 	level: 8
+	# Verzi PHP schválně nepřipínáme: PHPStan 2.x si rozsah bere z composer.json ("php": ">=8.0") a hlásí readonly,
+	# first-class callable a další 8.1+ konstrukce, přitom parsuje verzí, na které běží. Pevné `phpVersion: 80000`
+	# by parsovalo jako 8.0 i vendor/, který je lokálně nainstalovaný pro novější PHP (nette/http 3.3 má readonly)
+	# → desítky falešných „unknown class". S vendorem pro PHP 8.0 (CI, --prefer-lowest) pouštěj phpstan-php80.neon.
 	tmpDir: temp/phpstan
 	paths:
 		- src

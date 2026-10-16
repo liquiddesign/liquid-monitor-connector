@@ -17,7 +17,7 @@ use Symfony\Component\Process\Process;
  */
 final class TmuxReaper
 {
-	public function __construct(private readonly TmuxClaudeDriver $tmux)
+	public function __construct(private TmuxClaudeDriver $tmux)
 	{
 	}
 

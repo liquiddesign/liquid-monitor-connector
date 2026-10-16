@@ -34,7 +34,7 @@ final class StormBridge
 			return;
 		}
 
-		Recorder::setKeyNormalizer(self::TYPE, self::normalizeSql(...));
+		Recorder::setKeyNormalizer(self::TYPE, \Closure::fromCallable([self::class, 'normalizeSql']));
 		$connection->setQueryObserver(static function (string $sql, int $durationNs, bool $error): void {
 			Recorder::record(self::TYPE, self::key($sql), $durationNs, $error);
 		});

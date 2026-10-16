@@ -10,9 +10,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class SessionSuspender
 {
 	public function __construct(
-		private readonly MonitorClient $monitor,
-		private readonly TmuxClaudeDriver $tmux,
-		private readonly TurnStateStore $turnStates,
+		private MonitorClient $monitor,
+		private TmuxClaudeDriver $tmux,
+		private TurnStateStore $turnStates,
 	) {
 	}
 

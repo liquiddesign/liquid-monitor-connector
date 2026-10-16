@@ -15,13 +15,13 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class TurnCollector
 {
 	public function __construct(
-		private readonly MonitorClient $monitor,
-		private readonly TmuxClaudeDriver $tmux,
-		private readonly JsonMilestoneParser $parser,
-		private readonly TurnCoordinator $coordinator,
-		private readonly TurnStateStore $turnStates,
-		private readonly int $turnTimeoutSeconds = 900,
-		private readonly int $maxNudges = 2,
+		private MonitorClient $monitor,
+		private TmuxClaudeDriver $tmux,
+		private JsonMilestoneParser $parser,
+		private TurnCoordinator $coordinator,
+		private TurnStateStore $turnStates,
+		private int $turnTimeoutSeconds = 900,
+		private int $maxNudges = 2,
 	) {
 	}
 

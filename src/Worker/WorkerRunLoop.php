@@ -22,15 +22,15 @@ final class WorkerRunLoop
 	 * @param \Closure(\LiquidMonitorConnector\Worker\ClaimedJob): \Symfony\Component\Process\Process $spawnChild
 	 */
 	public function __construct(
-		private readonly WorkerClientContract $client,
-		private readonly string $workerId,
-		private readonly int $maxParallel,
-		private readonly int $pollInterval,
-		private readonly int $maxRuntime,
-		private readonly int $leaseSeconds,
-		private readonly bool $once,
-		private readonly \Closure $spawnChild,
-		private readonly ?OutputInterface $output = null,
+		private WorkerClientContract $client,
+		private string $workerId,
+		private int $maxParallel,
+		private int $pollInterval,
+		private int $maxRuntime,
+		private int $leaseSeconds,
+		private bool $once,
+		private \Closure $spawnChild,
+		private ?OutputInterface $output = null,
 	) {
 	}
 

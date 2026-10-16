@@ -24,7 +24,7 @@ class LiquidMonitorLogger extends Logger
 	 */
 	private array $levels;
 
-	public function __construct(protected Request $request, protected ErrorReporter $errorReporter, protected RequestFactory $requestFactory, private readonly User $user)
+	public function __construct(protected Request $request, protected ErrorReporter $errorReporter, protected RequestFactory $requestFactory, private User $user)
 	{
 		parent::__construct(Debugger::$logDirectory, Debugger::$email, Debugger::getBlueScreen());
 	}

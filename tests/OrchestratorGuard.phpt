@@ -26,7 +26,7 @@ function runGuard(array $input): array
 }
 
 $cwd = \sys_get_temp_dir() . '/guard-test-' . \getmypid();
-@\mkdir($cwd . '/.orchestrator', 0o777, true);
+@\mkdir($cwd . '/.orchestrator', 0777, true);
 \file_put_contents(
 	$cwd . '/.orchestrator/policy.json',
 	\json_encode(['repo_mode' => true, 'deny_git' => ['commit', 'checkout', 'switch', 'reset', 'stash']]),

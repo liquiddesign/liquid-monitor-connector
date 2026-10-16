@@ -12,7 +12,7 @@ use Nette\Utils\Strings;
  */
 final class WorkerLock
 {
-	public function __construct(private readonly string $workerId)
+	public function __construct(private string $workerId)
 	{
 	}
 

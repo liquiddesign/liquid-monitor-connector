@@ -18,13 +18,13 @@ $run = static function (array $cmd): void {
 
 $base = \sys_get_temp_dir() . '/pathguard-' . \getmypid() . '-' . \uniqid();
 $work = $base . '/work';
-@\mkdir($work, 0o777, true);
+@\mkdir($work, 0777, true);
 
 $run(['git', 'init', '-b', 'main', $work]);
 $run(['git', '-C', $work, 'config', 'user.email', 'test@test.cz']);
 $run(['git', '-C', $work, 'config', 'user.name', 'Test']);
 \file_put_contents($work . '/README.md', "v1\n");
-@\mkdir($work . '/app', 0o777, true);
+@\mkdir($work . '/app', 0777, true);
 \file_put_contents($work . '/app/Service.php', "<?php\n");
 $run(['git', '-C', $work, 'add', '.']);
 $run(['git', '-C', $work, 'commit', '-m', 'init']);
@@ -41,7 +41,7 @@ Assert::false($guard->touchesRestrictedPaths($work, $settings));
 
 // A brand-new (untracked) migration must be caught — this is the regression:
 // `git diff HEAD` would never show it, so it used to slip past the review gate.
-@\mkdir($work . '/database/migrations', 0o777, true);
+@\mkdir($work . '/database/migrations', 0777, true);
 \file_put_contents($work . '/database/migrations/2026_create_table.php', "<?php\n");
 Assert::true($guard->touchesRestrictedPaths($work, $settings));
 \unlink($work . '/database/migrations/2026_create_table.php');
@@ -52,7 +52,7 @@ Assert::true($guard->touchesRestrictedPaths($work, $settings));
 \unlink($work . '/.env');
 
 // A modified tracked config file is caught (the original tracked-only case still works).
-@\mkdir($work . '/config', 0o777, true);
+@\mkdir($work . '/config', 0777, true);
 \file_put_contents($work . '/config/app.php', "<?php\n");
 $run(['git', '-C', $work, 'add', 'config/app.php']);
 $run(['git', '-C', $work, 'commit', '-m', 'add config']);
@@ -61,7 +61,7 @@ Assert::true($guard->touchesRestrictedPaths($work, $settings));
 $run(['git', '-C', $work, 'checkout', '--', 'config/app.php']);
 
 // Files under .orchestrator/ are excluded — the agent's own milestone never triggers handoff.
-@\mkdir($work . '/.orchestrator', 0o777, true);
+@\mkdir($work . '/.orchestrator', 0777, true);
 \file_put_contents($work . '/.orchestrator/config-like.env', "x\n");
 Assert::false($guard->touchesRestrictedPaths($work, $settings));
 

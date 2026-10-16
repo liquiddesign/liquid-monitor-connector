@@ -41,7 +41,7 @@ final class Aggregator
 	 */
 	public function __construct(private int $maxTracesPerMinute = 200, private int $maxKeysPerMinute = 2000, ?array $normalizers = null)
 	{
-		$this->normalizers = $normalizers ?? [StormBridge::TYPE => StormBridge::normalizeSql(...)];
+		$this->normalizers = $normalizers ?? [StormBridge::TYPE => \Closure::fromCallable([StormBridge::class, 'normalizeSql'])];
 	}
 
 	public function ingest(string $datagram): bool

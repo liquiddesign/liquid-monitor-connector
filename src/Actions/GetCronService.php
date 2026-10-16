@@ -16,7 +16,7 @@ class GetCronService
 {
 	private Cron|null $cron = null;
 
-	public function __construct(private readonly Container $container)
+	public function __construct(private Container $container)
 	{
 	}
 

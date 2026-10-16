@@ -10,13 +10,13 @@ final class ClaimedJob
 	 * @param array<mixed>|null $arguments
 	 */
 	public function __construct(
-		public readonly int $jobId,
-		public readonly int $jobLogId,
-		public readonly string $cronCode,
-		public readonly ?array $arguments,
-		public readonly int $timeout,
-		public readonly int $leaseSeconds,
-		public readonly string $concurrencyMode,
+		public int $jobId,
+		public int $jobLogId,
+		public string $cronCode,
+		public ?array $arguments,
+		public int $timeout,
+		public int $leaseSeconds,
+		public string $concurrencyMode,
 	) {
 	}
 

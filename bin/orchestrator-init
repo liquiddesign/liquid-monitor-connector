@@ -166,7 +166,7 @@ if (!$flags['no-validate']) {
 
 $dir = $repoPath . '/.orchestrator';
 
-if (!\is_dir($dir) && !\mkdir($dir, 0o775, true) && !\is_dir($dir)) {
+if (!\is_dir($dir) && !\mkdir($dir, 0775, true) && !\is_dir($dir)) {
 	\fwrite(\STDERR, "orchestrator-init: could not create {$dir}\n");
 	exit(1);
 }
@@ -193,7 +193,7 @@ if ($workerId !== null && $workerId !== '') {
 }
 
 \file_put_contents($envPath, \implode("\n", $lines) . "\n");
-\chmod($envPath, 0o600);
+\chmod($envPath, 0600);
 \fwrite(\STDOUT, "  ✓ Wrote {$envPath}\n");
 
 // Keep the secret-bearing .env (and all generated control files) out of git via a

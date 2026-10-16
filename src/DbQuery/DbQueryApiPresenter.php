@@ -26,7 +26,7 @@ use Tracy\Debugger;
  */
 class DbQueryApiPresenter extends Presenter
 {
-	public function __construct(private readonly DbQueryConfig $config)
+	public function __construct(private DbQueryConfig $config)
 	{
 	}
 
@@ -115,14 +115,18 @@ class DbQueryApiPresenter extends Presenter
 
 	/**
 	 * @param array<string, mixed> $payload
+	 * @return never
 	 */
-	protected function sendJsonPayload(array $payload, int $code = 200): never
+	protected function sendJsonPayload(array $payload, int $code = 200): void
 	{
 		$this->getHttpResponse()->setCode($code);
 		$this->sendResponse(new JsonResponse($payload));
 	}
 
-	protected function sendErrorResponse(int $code, string $message): never
+	/**
+	 * @return never
+	 */
+	protected function sendErrorResponse(int $code, string $message): void
 	{
 		$this->sendJsonPayload(['error' => $message, 'code' => $code], $code);
 	}

@@ -9,9 +9,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class WorktreeCleanup
 {
 	public function __construct(
-		private readonly MonitorClient $monitor,
-		private readonly WorktreeManager $worktrees,
-		private readonly string $repoPath,
+		private MonitorClient $monitor,
+		private WorktreeManager $worktrees,
+		private string $repoPath,
 	) {
 	}
 

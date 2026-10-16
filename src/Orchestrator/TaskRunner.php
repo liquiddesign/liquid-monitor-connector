@@ -9,15 +9,15 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class TaskRunner
 {
 	public function __construct(
-		private readonly MonitorClient $monitor,
-		private readonly WorktreeManager $worktrees,
-		private readonly TmuxClaudeDriver $tmux,
-		private readonly TurnCoordinator $coordinator,
-		private readonly TurnStateStore $turnStates,
-		private readonly ContextBundles $bundles,
-		private readonly PolicySettingsWriter $policyWriter,
-		private readonly RepoSynchronizer $repoSync,
-		private readonly ?OrchestratorRunReporter $reporter = null,
+		private MonitorClient $monitor,
+		private WorktreeManager $worktrees,
+		private TmuxClaudeDriver $tmux,
+		private TurnCoordinator $coordinator,
+		private TurnStateStore $turnStates,
+		private ContextBundles $bundles,
+		private PolicySettingsWriter $policyWriter,
+		private RepoSynchronizer $repoSync,
+		private ?OrchestratorRunReporter $reporter = null,
 	) {
 	}
 

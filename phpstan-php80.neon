@@ -1,0 +1,7 @@
+# Analýza s PHP 8.0 parserem — jen nad vendor/ nainstalovaným pro PHP 8.0 (CI job 8.0, --prefer-lowest),
+# jinak vendor/ s 8.1+ syntaxí nejde načíst. Lokálně stačí phpstan.neon (rozsah z composer.json).
+includes:
+	- phpstan.neon
+
+parameters:
+	phpVersion: 80000

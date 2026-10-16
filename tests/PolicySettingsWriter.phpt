@@ -11,7 +11,7 @@ Tester\Environment::setup();
 
 $writer = new PolicySettingsWriter();
 $cwd = \sys_get_temp_dir() . '/policy-writer-test-' . \getmypid();
-@\mkdir($cwd, 0o777, true);
+@\mkdir($cwd, 0777, true);
 
 $merged = [
 	'env' => [],

@@ -1,6 +1,19 @@
 <?xml version="1.0"?>
 <ruleset name="LqdCS">
     <rule ref="vendor/liquiddesign/codestyle/src/ruleset.xml"/>
+    <!--
+        Kompatibilita se spodní hranicí composer.json ("php": ">=8.0").
+        PHPCompatibility 9.x zná jen konstrukce do PHP 8.0 (readonly, enum, never, first-class callable ani 0o
+        nehlásí) — ty hlídá PHPStan (rozsah z composer.json) a CI job na PHP 8.0. Hlásit je bude až 10.x.
+    -->
+    <config name="testVersion" value="8.0-"/>
+    <!-- Slevomat (phpcbf) jinak podle běžícího PHP navrhuje/doplňuje never, readonly apod. -->
+    <config name="php_version" value="80000"/>
+    <!-- Cestou, ne jménem: codestyle ruleset přepisuje installed_paths jen na slevomat. -->
+    <rule ref="vendor/phpcompatibility/php-compatibility/PHPCompatibility">
+        <!-- Falešný poplach: 9.x bere metody třídy SQLite3 (ext-sqlite3) za odstraněné ext-sqlite z PHP 5.3. -->
+        <exclude name="PHPCompatibility.Extensions.RemovedExtensions.sqliteRemoved"/>
+    </rule>
     <rule ref="SlevomatCodingStandard.Files.TypeNameMatchesFileName">
         <properties>
             <property name="rootNamespaces" type="array">

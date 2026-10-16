@@ -7,6 +7,7 @@ namespace LiquidMonitorConnector\Telemetry\Agent;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use LiquidMonitorConnector\Version;
+use Nette\Utils\Arrays;
 use Nette\Utils\FileSystem;
 
 // phpcs:disable Generic.PHP.NoSilencedErrors.Discouraged -- nedostupný disk nebo monitor nesmí agenta shodit
@@ -124,7 +125,7 @@ final class MonitorSink implements Sink
 			/** @var list<array<string, mixed>>|mixed $minutes */
 			$minutes = \json_decode($line, true);
 
-			if (!\is_array($minutes) || !\array_is_list($minutes)) {
+			if (!\is_array($minutes) || !Arrays::isList($minutes)) {
 				continue;
 			}
 

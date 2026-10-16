@@ -4,12 +4,19 @@ namespace LiquidMonitorConnector\HealthCheck;
 
 class HealthCheckData
 {
+	private int $status;
+
+	/**
+	 * @param int $status jedna z konstant {@see HealthCheckStatusEnum}
+	 * @throws \ValueError neznámý stav
+	 */
 	public function __construct(
-		private readonly string $name,
-		private readonly mixed $value,
-		private readonly HealthCheckStatusEnum $status = HealthCheckStatusEnum::OK,
-		private readonly string|null $description = null,
+		private string $name,
+		private mixed $value,
+		int $status = HealthCheckStatusEnum::OK,
+		private string|null $description = null,
 	) {
+		$this->status = HealthCheckStatusEnum::from($status);
 	}
 
 	public function getName(): string
@@ -17,7 +24,10 @@ class HealthCheckData
 		return $this->name;
 	}
 
-	public function getStatus(): HealthCheckStatusEnum
+	/**
+	 * @return int jedna z konstant {@see HealthCheckStatusEnum}
+	 */
+	public function getStatus(): int
 	{
 		return $this->status;
 	}
@@ -30,7 +40,7 @@ class HealthCheckData
 		return [
 			'name' => $this->name,
 			'value' => $this->value,
-			'status' => $this->status->name,
+			'status' => HealthCheckStatusEnum::name($this->status),
 			'description' => $this->description,
 		];
 	}

@@ -9,11 +9,8 @@ final class ClaimJobsResult
 	/**
 	 * @param list<\LiquidMonitorConnector\Worker\ClaimedJob> $jobs
 	 */
-	public function __construct(
-		public readonly array $jobs,
-		public readonly int $pendingJobs,
-		public readonly int $pollAfterSeconds,
-	) {
+	public function __construct(public array $jobs, public int $pendingJobs, public int $pollAfterSeconds,)
+	{
 	}
 
 	/**

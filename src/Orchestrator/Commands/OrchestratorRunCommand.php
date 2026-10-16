@@ -40,11 +40,11 @@ final class OrchestratorRunCommand extends Command
 	 * overrides for debugging.
 	 */
 	public function __construct(
-		private readonly MonitorClient $monitor,
-		private readonly string $workerId,
-		private readonly ?int $maxConcurrent = null,
-		private readonly ?string $claudeBinary = null,
-		private readonly ?int $turnTimeoutSeconds = null,
+		private MonitorClient $monitor,
+		private string $workerId,
+		private ?int $maxConcurrent = null,
+		private ?string $claudeBinary = null,
+		private ?int $turnTimeoutSeconds = null,
 	) {
 		parent::__construct();
 	}

@@ -18,10 +18,10 @@ final class WorkerClient implements WorkerClientContract
 
 	public function __construct(
 		string $connectorUrl,
-		private readonly string $apiKey,
+		private string $apiKey,
 		?Client $client = null,
-		private readonly int $timeoutSeconds = 30,
-		private readonly bool|string $verifyTls = true,
+		private int $timeoutSeconds = 30,
+		private bool|string $verifyTls = true,
 	) {
 		$connectorUrl = \rtrim($connectorUrl, '/');
 

@@ -15,7 +15,7 @@ use Symfony\Component\Process\Process;
 #[AsCommand(name: 'run', description: 'Claim cron jobs from Liquid Monitor and execute handlers locally.')]
 final class WorkerRunCommand extends Command
 {
-	public function __construct(private readonly WorkerClient $client, private readonly string $workerScript,)
+	public function __construct(private WorkerClient $client, private string $workerScript,)
 	{
 		parent::__construct();
 	}

@@ -157,7 +157,10 @@ function guardControlFileDenyReason(string $filePath): ?string
 	return null;
 }
 
-function guardDeny(string $reason): never
+/**
+ * @return never
+ */
+function guardDeny(string $reason): void
 {
 	echo \json_encode([
 		'hookSpecificOutput' => [
@@ -226,7 +229,10 @@ function guardMilestoneBlockReason(string $milestoneFile): ?string
 	return null;
 }
 
-function guardBlockStop(string $reason): never
+/**
+ * @return never
+ */
+function guardBlockStop(string $reason): void
 {
 	echo \json_encode(['decision' => 'block', 'reason' => $reason]);
 	\fwrite(\STDERR, $reason);

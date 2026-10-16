@@ -26,9 +26,9 @@ Tester\Environment::setup();
 final class FakeChildProcess extends Process
 {
 	public function __construct(
-		private readonly int $fakeExitCode,
-		private readonly string $fakeStdout = '',
-		private readonly string $fakeStderr = '',
+		private int $fakeExitCode,
+		private string $fakeStdout = '',
+		private string $fakeStderr = '',
 	) {
 		parent::__construct(['true']);
 	}
@@ -94,9 +94,9 @@ final class FakeWorkerClient implements WorkerClientContract
 	 * @param int|null $maxClaims Stop returning jobs after this many claim calls.
 	 */
 	public function __construct(
-		private readonly array $firstBatch,
-		private readonly array $secondBatch = [],
-		private readonly ?int $maxClaims = null,
+		private array $firstBatch,
+		private array $secondBatch = [],
+		private ?int $maxClaims = null,
 	) {
 	}
 

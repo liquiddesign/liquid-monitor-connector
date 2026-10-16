@@ -37,9 +37,9 @@ final class ReadOnlyQueryRunner
 	 * @param array{driver: string, host: string, port?: int|null, database: string, username: string, password?: string|null} $connection
 	 */
 	public function __construct(
-		private readonly array $connection,
-		private readonly int $rowLimit = self::DEFAULT_ROW_LIMIT,
-		private readonly int $statementTimeoutSeconds = self::DEFAULT_TIMEOUT_SECONDS,
+		private array $connection,
+		private int $rowLimit = self::DEFAULT_ROW_LIMIT,
+		private int $statementTimeoutSeconds = self::DEFAULT_TIMEOUT_SECONDS,
 	) {
 	}
 

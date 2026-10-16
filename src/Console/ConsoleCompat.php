@@ -9,7 +9,7 @@ use Symfony\Component\Console\Command\Command;
 
 /**
  * Registrace commandu napříč celým rozsahem symfony/console, který connector povoluje
- * (^6.3 || ^7.0 || ^8.0).
+ * (^5.4 || ^6.0 || ^7.0 || ^8.0).
  *
  * Application::addCommand() existuje až od 7.4 (a add() je tam deprecated), v 8.0 je add()
  * odstraněné — ani jedna z metod tedy celý rozsah sama nepokryje. Hosti na StORM 1 /
