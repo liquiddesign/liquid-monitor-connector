@@ -55,6 +55,30 @@ Assert::same('select * from (SELECT 1) as triage_readonly_sub limit 50', $wrapLi
 Assert::same('select * from (WITH cte AS (SELECT 1 AS n) SELECT n FROM cte) as triage_readonly_sub limit 10', $wrapLimit('WITH cte AS (SELECT 1 AS n) SELECT n FROM cte', 10));
 Assert::same('select * from (SELECT 1) as triage_readonly_sub limit 100', $wrapLimit('SELECT 1;', 100));
 
+// --- Bindings ---
+Assert::same([], ReadOnlyQueryRunner::normalizeBindings([]));
+Assert::same([1, 'a', 1.5, true, null], ReadOnlyQueryRunner::normalizeBindings([1, 'a', 1.5, true, null]));
+
+// A JSON object (named keys) or a sparse list is not a positional list.
+Assert::exception(
+	static fn () => ReadOnlyQueryRunner::normalizeBindings(['id' => 1]),
+	InvalidArgumentException::class,
+	'"bindings" must be a list of positional values.',
+);
+Assert::exception(
+	static fn () => ReadOnlyQueryRunner::normalizeBindings([1 => 'a']),
+	InvalidArgumentException::class,
+	'"bindings" must be a list of positional values.',
+);
+
+// Nested arrays / objects are rejected — and before any connection is opened
+// (127.0.0.1:3306 with these credentials would otherwise fail with PDOException).
+Assert::exception(
+	static fn () => (new ReadOnlyQueryRunner($connection))->run('SELECT ?', [[1, 2]]),
+	InvalidArgumentException::class,
+	'Binding #0 must be a scalar or null.',
+);
+
 // Unsupported driver is rejected before connecting.
 Assert::exception(
 	static fn () => (new ReadOnlyQueryRunner([

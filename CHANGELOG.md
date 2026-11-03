@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- DB query API (`POST /{urlPrefix}/api/query`) accepts optional `bindings` — positional values for `?`
+  placeholders, executed as a prepared statement. Before, the field was ignored and the `?` reached the
+  database unreplaced, so LQDeck `query_project_db` with bindings ended in `500 Database query failed.`
+  Invalid bindings (an object, a nested array, a count that does not match the placeholders) answer `422`.
+
 ## [4.0.0] — 2026-10-16
 
 Upgrade: [`UPGRADE-4.0.md`](UPGRADE-4.0.md). Design: `docs/v4-local-scheduler.md`, data contract: `docs/v4-contract.md`.

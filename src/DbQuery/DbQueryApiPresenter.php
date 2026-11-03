@@ -62,12 +62,19 @@ class DbQueryApiPresenter extends Presenter
 		$connection = $rawConnection;
 		$this->assertValidConnection($connection);
 
+		/** @var mixed $bindings */
+		$bindings = $decoded['bindings'] ?? [];
+
+		if (!\is_array($bindings)) {
+			$this->sendErrorResponse(422, '"bindings" must be an array.');
+		}
+
 		$rowLimit = self::intOrDefault($decoded['row_limit'] ?? null, 100);
 		$statementTimeout = self::intOrDefault($decoded['statement_timeout_seconds'] ?? null, 5);
 
 		try {
 			$runner = new ReadOnlyQueryRunner($connection, $rowLimit, $statementTimeout);
-			$result = $runner->run($sql);
+			$result = $runner->run($sql, $bindings);
 		} catch (InvalidArgumentException $e) {
 			$this->sendErrorResponse(422, $e->getMessage());
 		} catch (PDOException $e) {

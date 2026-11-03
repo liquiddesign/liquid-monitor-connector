@@ -111,9 +111,14 @@ liquidMonitorDbQuery:
     "password": "…"
   },
   "row_limit": 100,
-  "statement_timeout_seconds": 5
+  "statement_timeout_seconds": 5,
+  "bindings": []
 }
 ```
+
+`bindings` (volitelné, od 4.1.0) — poziční hodnoty pro `?` v `sql` (skaláry nebo `null`); dotaz pak běží
+přes `prepare()` + `execute()`. Objekt, vnořené pole nebo nesedící počet hodnot vrátí `422`. Starší konektor
+pole ignoruje a `?` pošle do DB nenahrazené (`500 Database query failed.`).
 
 **Bezpečnostní model:**
 

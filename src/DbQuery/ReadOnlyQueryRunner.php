@@ -44,12 +44,14 @@ final class ReadOnlyQueryRunner
 	}
 
 	/**
+	 * @param array<mixed> $bindings positional values for `?` placeholders in $sql
 	 * @return array{columns: array<int, string>, rows: array<int, array<string, mixed>>, row_count: int, limit: int, truncated: bool}
 	 */
-	public function run(string $sql): array
+	public function run(string $sql, array $bindings = []): array
 	{
 		$sql = Strings::trim($sql);
 		$this->assertReadOnly($sql);
+		$bindings = self::normalizeBindings($bindings);
 
 		$limit = \max(1, \min($this->rowLimit, self::MAX_ROW_LIMIT));
 		$effectiveSql = $this->wrapWithLimit($sql, $limit);
@@ -57,7 +59,9 @@ final class ReadOnlyQueryRunner
 		$pdo = $this->connect();
 		$this->applyStatementTimeout($pdo);
 
-		$statement = $pdo->query($effectiveSql);
+		$statement = $bindings === []
+			? $pdo->query($effectiveSql)
+			: $this->executePrepared($pdo, $effectiveSql, $bindings);
 
 		if (!$statement instanceof PDOStatement) {
 			throw new PDOException('Query did not return a result set.');
@@ -75,6 +79,67 @@ final class ReadOnlyQueryRunner
 			'limit' => $limit,
 			'truncated' => \count($rows) >= $limit,
 		];
+	}
+
+	/**
+	 * Bindings must be a JSON array (a list) of scalars or nulls — an object, a nested
+	 * array or any other shape is rejected before a connection is opened.
+	 * @param array<mixed> $bindings
+	 * @return list<scalar|null>
+	 */
+	public static function normalizeBindings(array $bindings): array
+	{
+		if (\array_values($bindings) !== $bindings) {
+			throw new InvalidArgumentException('"bindings" must be a list of positional values.');
+		}
+
+		foreach ($bindings as $index => $value) {
+			if ($value !== null && !\is_scalar($value)) {
+				throw new InvalidArgumentException("Binding #{$index} must be a scalar or null.");
+			}
+		}
+
+		/** @var list<scalar|null> $list */
+		$list = $bindings;
+
+		return $list;
+	}
+
+	/**
+	 * @param list<scalar|null> $bindings
+	 */
+	private function executePrepared(PDO $pdo, string $sql, array $bindings): PDOStatement
+	{
+		$statement = $pdo->prepare($sql);
+
+		if (!$statement instanceof PDOStatement) {
+			throw new PDOException('Query could not be prepared.');
+		}
+
+		foreach ($bindings as $index => $value) {
+			[$bound, $type] = match (true) {
+				$value === null => [null, PDO::PARAM_NULL],
+				\is_int($value) => [$value, PDO::PARAM_INT],
+				\is_bool($value) => [$value, PDO::PARAM_BOOL],
+				default => [(string) $value, PDO::PARAM_STR],
+			};
+
+			$statement->bindValue($index + 1, $bound, $type);
+		}
+
+		try {
+			$statement->execute();
+		} catch (PDOException $e) {
+			// HY093: the number of bindings does not match the `?` placeholders — the
+			// caller's mistake, so report it as such instead of a generic DB failure.
+			if ($e->getCode() === 'HY093') {
+				throw new InvalidArgumentException('The number of bindings does not match the ? placeholders in the query.', 0, $e);
+			}
+
+			throw $e;
+		}
+
+		return $statement;
 	}
 
 	private function assertReadOnly(string $sql): void
