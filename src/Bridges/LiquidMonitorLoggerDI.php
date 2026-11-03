@@ -39,13 +39,14 @@ class LiquidMonitorLoggerDI extends \Nette\DI\CompilerExtension
 
 	public function getConfigSchema(): Schema
 	{
-		/** @var \Nette\Schema\Elements\Type $levels */
-		$levels = Expect::array([ILogger::ERROR, ILogger::EXCEPTION, ILogger::CRITICAL, ILogger::WARNING, ILogger::INFO]);
+		$levels = Expect::arrayOf('string')
+			->default([ILogger::ERROR, ILogger::EXCEPTION, ILogger::CRITICAL, ILogger::WARNING, ILogger::INFO])
+			->mergeDefaults(false);
 
 		return Expect::structure([
 			// @deprecated — title is no longer sent to the backend; kept here so existing NEON configs with `title:` do not break
 			'title' => Expect::string(),
-			'levels' => $levels->mergeDefaults(false),
+			'levels' => $levels,
 			// Standalone error-only setup (no liquidMonitorConnector). When the cron
 			// extension is registered, its log channel is reused and these stay null.
 			'url' => Expect::string()->nullable(),
