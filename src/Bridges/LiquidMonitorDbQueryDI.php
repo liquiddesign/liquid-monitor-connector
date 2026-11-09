@@ -31,6 +31,7 @@ use Nette\Schema\Schema;
  *       registerRoutes: true
  *       registerPresenterMapping: true
  *       apiToken: '…' # volitelné — vyžaduje X-Api-Key header
+ *       allowedHosts: [127.0.0.1, localhost, '::1'] # výchozí — kam se smí připojit (DB host aplikace)
  */
 class LiquidMonitorDbQueryDI extends CompilerExtension
 {
@@ -40,6 +41,8 @@ class LiquidMonitorDbQueryDI extends CompilerExtension
 			'urlPrefix' => Expect::string('db-query'),
 			'apiPresenter' => Expect::string('DbQuery:DbQueryApi'),
 			'apiToken' => Expect::string()->nullable(),
+			// null = loopback default; a list replaces it (Expect default lists would merge with it).
+			'allowedHosts' => Expect::listOf('string')->nullable()->default(null),
 			'registerRoutes' => Expect::bool(true),
 			'registerPresenterMapping' => Expect::bool(true),
 		])->castTo('array');
@@ -47,13 +50,13 @@ class LiquidMonitorDbQueryDI extends CompilerExtension
 
 	public function loadConfiguration(): void
 	{
-		/** @var array{urlPrefix: string, apiPresenter: string, apiToken: ?string, registerRoutes: bool, registerPresenterMapping: bool} $config */
+		/** @var array{urlPrefix: string, apiPresenter: string, apiToken: ?string, allowedHosts: list<string>|null, registerRoutes: bool, registerPresenterMapping: bool} $config */
 		$config = $this->config;
 
 		$builder = $this->getContainerBuilder();
 
 		$builder->addDefinition($this->prefix('config'))
-			->setFactory(DbQueryConfig::class, ['apiToken' => $config['apiToken']]);
+			->setFactory(DbQueryConfig::class, ['apiToken' => $config['apiToken'], 'allowedHosts' => $config['allowedHosts'] ?? DbQueryConfig::DEFAULT_ALLOWED_HOSTS]);
 
 		if (!$config['registerRoutes']) {
 			return;
@@ -71,7 +74,7 @@ class LiquidMonitorDbQueryDI extends CompilerExtension
 
 	public function beforeCompile(): void
 	{
-		/** @var array{urlPrefix: string, apiPresenter: string, apiToken: ?string, registerRoutes: bool, registerPresenterMapping: bool} $config */
+		/** @var array{urlPrefix: string, apiPresenter: string, apiToken: ?string, allowedHosts: list<string>|null, registerRoutes: bool, registerPresenterMapping: bool} $config */
 		$config = $this->config;
 		$builder = $this->getContainerBuilder();
 

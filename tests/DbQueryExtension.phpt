@@ -70,7 +70,13 @@ Assert::count(1, $prependSetups);
 $withToken = $boot(['apiToken' => 'secret-token']);
 $withToken->loadConfiguration();
 $tokenConfig = $withToken->getContainerBuilder()->getDefinition('liquidMonitorDbQuery.config');
-Assert::same(['apiToken' => 'secret-token'], $tokenConfig->getFactory()->arguments);
+Assert::same(['apiToken' => 'secret-token', 'allowedHosts' => ['127.0.0.1', 'localhost', '::1']], $tokenConfig->getFactory()->arguments);
+
+// --- allowedHosts overrides the loopback default. ---
+$withHosts = $boot(['allowedHosts' => ['db']]);
+$withHosts->loadConfiguration();
+$hostsConfig = $withHosts->getContainerBuilder()->getDefinition('liquidMonitorDbQuery.config');
+Assert::same(['db'], $hostsConfig->getFactory()->arguments['allowedHosts']);
 
 // --- registerRoutes:false is a full opt-out. ---
 $disabled = $boot(['registerRoutes' => false]);

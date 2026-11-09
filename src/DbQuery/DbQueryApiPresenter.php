@@ -24,6 +24,8 @@ use Tracy\Debugger;
  *     by the caller (the monitor) in the request body, so no separate token is required.
  *  2. Optional apiToken from DI — when configured, additionally requires a matching X-Api-Key
  *     header. A trusted IP alone is sufficient when no apiToken is set.
+ *  3. The connection host must be in `allowedHosts` (loopback by default) — the credentials come
+ *     from the caller, but the connection is opened from the host app's server.
  */
 class DbQueryApiPresenter extends Presenter
 {
@@ -158,6 +160,15 @@ class DbQueryApiPresenter extends Presenter
 
 			$this->sendErrorResponse(422, "Missing required connection field: {$field}.");
 		}
+
+		/** @var string $host */
+		$host = $connection['host'];
+
+		if ($this->config->isHostAllowed($host)) {
+			return;
+		}
+
+		$this->sendErrorResponse(422, 'Connection host is not allowed (liquidMonitorDbQuery.allowedHosts).');
 	}
 
 	private static function intOrDefault(mixed $value, int $default): int

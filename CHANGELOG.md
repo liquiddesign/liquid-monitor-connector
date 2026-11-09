@@ -3,6 +3,27 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [4.2.0] — 2026-11-09
+
+### Security
+- DB query API: the read-only check could be bypassed. It inspected a copy of the SQL with `#…` / `--…` stripped
+  even inside string literals and ignored MySQL / MariaDB executable comments (`/*! … */`), while the database ran
+  the original text — `select '#' ) as t; drop table x; …` passed and ran as several statements under the
+  credentials the monitor sends. Now:
+  - the check masks literals and comments the way the server lexes them and refuses executable comments and
+    unterminated literals / comments;
+  - MySQL connections run with `MULTI_STATEMENTS` off, PostgreSQL queries always as a prepared statement — one
+    statement per request even if a query slips past the check;
+  - the session is switched to `READ ONLY` before the query (fail closed when the server cannot);
+  - the wrapper ends a trailing line comment of the query, so it cannot swallow the `LIMIT`.
+- DB query API connects only to hosts in the new `liquidMonitorDbQuery.allowedHosts` (default loopback
+  `127.0.0.1`, `localhost`, `::1` — what the monitor's proxy mode sends); before, a caller from a trusted IP could
+  make the server open a database connection to any host. Other hosts answer `422`.
+
+### Changed
+- A literal containing `;` or a keyword (`where status = 'delete'`) no longer fails the read-only check.
+- PostgreSQL: a query without bindings runs as a prepared statement too, so a literal `?` operator needs `??`.
+
 ## [4.1.0] — 2026-11-03
 
 ### Added

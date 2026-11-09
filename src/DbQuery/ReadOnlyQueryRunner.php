@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace LiquidMonitorConnector\DbQuery;
 
+// phpcs:disable Generic.PHP.ForbiddenFunctions.FoundWithAlternative -- the SQL lexer works on byte offsets (strlen/strpos), not on characters
+
 use InvalidArgumentException;
 use Nette\Utils\Strings;
 use PDO;
@@ -18,6 +20,16 @@ use Throwable;
  *  - a server-enforced row LIMIT (the query is wrapped in a capped subquery),
  *  - a driver-level statement timeout,
  *  - an isolated PDO connection per request.
+ *
+ * The keyword check alone is not a boundary: it inspects a copy of the SQL, while the
+ * database runs the original text. Until 4.2.0 the copy dropped `#…` / `--…` even
+ * inside string literals and ignored MySQL executable comments (`/*! … *\/`), so
+ * `select '#' ) as t; drop table x; …` passed the check and ran as several statements
+ * under the caller's credentials. The check now masks literals and comments the way
+ * the server lexes them and refuses executable comments, and the connection itself
+ * refuses more than one statement (MySQL `MULTI_STATEMENTS` off, PostgreSQL native
+ * prepare) and runs in a read-only session — a write fails in the database even if
+ * a query slips past the check.
  */
 final class ReadOnlyQueryRunner
 {
@@ -57,9 +69,13 @@ final class ReadOnlyQueryRunner
 		$effectiveSql = $this->wrapWithLimit($sql, $limit);
 
 		$pdo = $this->connect();
+		$this->applyReadOnlySession($pdo);
 		$this->applyStatementTimeout($pdo);
 
-		$statement = $bindings === []
+		// PostgreSQL `query()` runs the simple protocol, which accepts several statements in one
+		// string; a prepared statement (extended protocol) accepts exactly one. MySQL refuses
+		// several statements already on the connection (MULTI_STATEMENTS off, see connect()).
+		$statement = $bindings === [] && $this->resolveDriver($this->connection['driver']) === 'mysql'
 			? $pdo->query($effectiveSql)
 			: $this->executePrepared($pdo, $effectiveSql, $bindings);
 
@@ -106,6 +122,76 @@ final class ReadOnlyQueryRunner
 	}
 
 	/**
+	 * Copy of $sql for the keyword check: every string literal and quoted identifier becomes `q`,
+	 * every comment a space — lexed the way the server lexes them, so a `#` or `;` inside a literal
+	 * neither hides nor fakes a statement. Where the lexers of the two servers differ, it masks less
+	 * than the server would (a stricter check), never more:
+	 *  - MySQL: `#` and `-- ` (dash dash + whitespace) are comments; `--x` is not; backslash escapes
+	 *    a quote (default sql_mode);
+	 *  - PostgreSQL: `--` is always a comment, `#` is an operator, backslash escapes only in `E'…'`;
+	 *    dollar-quoted strings stay unmasked (their content is checked as code).
+	 *
+	 * Refuses MySQL / MariaDB executable comments (`/*! … *\/`, `/*M! … *\/`) — the server runs
+	 * their content — and unterminated literals or comments.
+	 */
+	public static function maskLiteralsAndComments(string $sql, bool $isMysql): string
+	{
+		$masked = '';
+		$length = \strlen($sql);
+		$position = 0;
+
+		while ($position < $length) {
+			$char = $sql[$position];
+			$next = $position + 1 < $length ? $sql[$position + 1] : '';
+
+			if ($char === '\'' || $char === '"' || $char === '`') {
+				$prefix = $position > 0 ? $sql[$position - 1] : '';
+				$backslashEscapes = $char !== '`' && ($isMysql || ($char === '\'' && ($prefix === 'E' || $prefix === 'e')));
+				$position = self::findClosingQuote($sql, $position, $char, $backslashEscapes);
+				$masked .= ' q ';
+
+				continue;
+			}
+
+			if ($char === '/' && $next === '*') {
+				$third = $position + 2 < $length ? $sql[$position + 2] : '';
+				$fourth = $position + 3 < $length ? $sql[$position + 3] : '';
+
+				if ($third === '!' || ($third === 'M' && $fourth === '!')) {
+					throw new InvalidArgumentException('Executable comments are not allowed.');
+				}
+
+				$end = \strpos($sql, '*/', $position + 2);
+
+				if ($end === false) {
+					throw new InvalidArgumentException('Unterminated comment.');
+				}
+
+				$position = $end + 2;
+				$masked .= ' ';
+
+				continue;
+			}
+
+			$isLineComment = ($isMysql && $char === '#')
+				|| ($char === '-' && $next === '-' && (!$isMysql || $position + 2 >= $length || \ctype_space($sql[$position + 2]) || \ctype_cntrl($sql[$position + 2])));
+
+			if ($isLineComment) {
+				$end = \strpos($sql, "\n", $position);
+				$position = $end === false ? $length : $end;
+				$masked .= ' ';
+
+				continue;
+			}
+
+			$masked .= $char;
+			$position++;
+		}
+
+		return $masked;
+	}
+
+	/**
 	 * @param list<scalar|null> $bindings
 	 */
 	private function executePrepared(PDO $pdo, string $sql, array $bindings): PDOStatement
@@ -148,8 +234,8 @@ final class ReadOnlyQueryRunner
 			throw new InvalidArgumentException('Empty query.');
 		}
 
-		$normalized = $this->stripComments($sql);
-		$trimmed = \ltrim($normalized);
+		$isMysql = $this->resolveDriver($this->connection['driver']) === 'mysql';
+		$trimmed = \ltrim(self::maskLiteralsAndComments($sql, $isMysql));
 
 		if (\preg_match('/^(select|with)\b/i', $trimmed) !== 1) {
 			throw new InvalidArgumentException('Only SELECT or WITH queries are allowed.');
@@ -168,19 +254,12 @@ final class ReadOnlyQueryRunner
 		}
 	}
 
-	private function stripComments(string $sql): string
-	{
-		$sql = \preg_replace('/\/\*.*?\*\//s', ' ', $sql) ?? $sql;
-		$sql = \preg_replace('/--[^\n]*/', ' ', $sql) ?? $sql;
-
-		return \preg_replace('/#[^\n]*/', ' ', $sql) ?? $sql;
-	}
-
 	private function wrapWithLimit(string $sql, int $limit): string
 	{
 		$body = \rtrim(\rtrim(Strings::trim($sql)), ';');
 
-		return "select * from ({$body}) as triage_readonly_sub limit {$limit}";
+		// The newline ends a trailing `#` / `--` comment of the query, so it cannot swallow the wrapper.
+		return "select * from ({$body}\n) as triage_readonly_sub limit {$limit}";
 	}
 
 	private function connect(): PDO
@@ -198,10 +277,18 @@ final class ReadOnlyQueryRunner
 			default => throw new InvalidArgumentException('Unsupported database driver.'),
 		};
 
-		$pdo = new PDO($dsn, $username, $password, [
+		$options = [
 			PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
 			PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-		]);
+		];
+
+		if ($driver === 'mysql') {
+			// pdo_mysql allows several statements per query() by default. PHP 8.4 added
+			// Pdo\Mysql::ATTR_MULTI_STATEMENTS and 8.5 deprecates the PDO::MYSQL_* alias.
+			$options[self::mysqlMultiStatementsAttribute()] = false;
+		}
+
+		$pdo = new PDO($dsn, $username, $password, $options);
 
 		if ($driver === 'mysql') {
 			$pdo->exec('SET NAMES utf8mb4');
@@ -219,6 +306,16 @@ final class ReadOnlyQueryRunner
 		};
 	}
 
+	/**
+	 * Fail closed: a server that cannot switch the session to read-only does not get the query.
+	 */
+	private function applyReadOnlySession(PDO $pdo): void
+	{
+		$pdo->exec($this->resolveDriver($this->connection['driver']) === 'pgsql'
+			? 'SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY'
+			: 'SET SESSION TRANSACTION READ ONLY');
+	}
+
 	private function applyStatementTimeout(PDO $pdo): void
 	{
 		$ms = \max(1, $this->statementTimeoutSeconds) * 1000;
@@ -234,5 +331,53 @@ final class ReadOnlyQueryRunner
 			// Best effort — if the server variant doesn't support the setting, the
 			// read still runs (credentials should point at a read-only user regardless).
 		}
+	}
+
+	/**
+	 * @return int position right after the closing quote
+	 */
+	private static function findClosingQuote(string $sql, int $open, string $quote, bool $backslashEscapes): int
+	{
+		$length = \strlen($sql);
+		$position = $open + 1;
+
+		while ($position < $length) {
+			$char = $sql[$position];
+
+			if ($backslashEscapes && $char === '\\') {
+				$position += 2;
+
+				continue;
+			}
+
+			if ($char === $quote) {
+				// A doubled quote is an escaped quote inside the literal in both servers.
+				if ($position + 1 < $length && $sql[$position + 1] === $quote) {
+					$position += 2;
+
+					continue;
+				}
+
+				return $position + 1;
+			}
+
+			$position++;
+		}
+
+		throw new InvalidArgumentException('Unterminated quoted string.');
+	}
+
+	private static function mysqlMultiStatementsAttribute(): int
+	{
+		$name = \defined('Pdo\\Mysql::ATTR_MULTI_STATEMENTS') ? 'Pdo\\Mysql::ATTR_MULTI_STATEMENTS' : 'PDO::MYSQL_ATTR_MULTI_STATEMENTS';
+
+		if (!\defined($name)) {
+			throw new InvalidArgumentException('The pdo_mysql extension is not available.');
+		}
+
+		/** @var int $attribute */
+		$attribute = \constant($name);
+
+		return $attribute;
 	}
 }

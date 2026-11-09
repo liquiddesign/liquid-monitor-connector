@@ -93,6 +93,7 @@ liquidMonitorDbQuery:
     registerRoutes: true
     registerPresenterMapping: true
     apiToken: '…'   # volitelné — když je nastaveno, navíc vyžaduje X-Api-Key header
+    allowedHosts: [127.0.0.1, localhost, '::1']   # výchozí (od 4.2.0) — hosty, na které se smí připojit
 ```
 
 **Endpoint:** `POST /{urlPrefix}/api/query`
@@ -125,6 +126,8 @@ pole ignoruje a `?` pošle do DB nenahrazené (`500 Database query failed.`).
 1. **Trusted IP / Tracy debug mode** — presenter servíruje jen v debug módu (`Debugger::$productionMode === false`), což je per-IP gate řízený `Configurator::setDebugMode` z whitelistu `access.debug` v host NEON (stejný mechanismus jako log-viewer). Mimo trusted IP presenter vrací `403`; gate je fail-closed (i nerozhodnutý `Detect` stav odmítne). Na produkci přidej IP monitoru do `access.debug`. **⚠️ Musí to být `access.debug`, NE `access.trusted`** — endpoint čte výhradně `access.debug` (Tracy debug mode); `access.trusted` (pro cron/jiný přístup) se pro DB query proxy **nevyhodnocuje**, takže IP jen v `access.trusted` → `403 Access denied`. **Pozn.:** nepoužívej `Debugger::isEnabled()` — to jen hlásí, že Tracy byla aktivovaná, a zůstává `true` i v produkci, takže nikoho neodřízne.
 2. **Credentials v HTTP body** — connector se k DB připojí jen s `connection` objektem z requestu (posílá monitor). Bez správných údajů SELECT neproběhne, takže **samostatný token na DB není potřeba** — stačí trusted IP.
 3. **Volitelný `apiToken`** — pokud je nastaven v NEON, navíc vyžaduje shodný `X-Api-Key` header (`hash_equals`). Defaultně vypnutý.
+4. **`allowedHosts`** (od 4.2.0) — `connection.host` musí být v seznamu (výchozí loopback, monitor v proxy režimu posílá `127.0.0.1`); jinak `422`. Údaje k DB posílá monitor, ale spojení otevírá server aplikace — bez seznamu by z trusted IP šlo připojit kamkoli v jeho síti.
+5. **Jeden příkaz, read-only session** (od 4.2.0) — kontrola klíčových slov maskuje literály a komentáře jako server a odmítá spustitelné komentáře (`/*! … */`); MySQL spojení má vypnuté `MULTI_STATEMENTS`, PostgreSQL běží vždy přes `prepare()`; před dotazem se session přepne na `READ ONLY` (když to server neumí, dotaz neproběhne). **Pro monitor přesto používej DB uživatele jen s `SELECT`** — kontrola v aplikaci je obrana do hloubky, ne hranice.
 
 **Odpovědi:** úspěch `200` s flat JSON (bez vnořeného `data`); chyby `{ "error": "…", "code": 400|403|422|500 }`.
 
