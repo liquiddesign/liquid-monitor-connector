@@ -32,12 +32,13 @@
         "dragonmantank/cron-expression": "^3.3"
     },
     "require-dev": {
-        "nette/tester": "^2.5",
-        "composer/composer": "~2.0",
-        "liquiddesign/codestyle": "~3.0.9",
+        "nette/tester": "^2.6.3",
+        "composer/composer": "^2.11",
+        "liquiddesign/codestyle": "~4.0",
         "liquiddesign/migrator": "~1.0",
-        "phpstan/phpstan-nette": "^2.0",
-        "phpcompatibility/php-compatibility": "^9.0"
+        "phpstan/phpstan": "^2.3.5",
+        "phpstan/phpstan-nette": "^2.0.15",
+        "phpcompatibility/php-compatibility": "^10.0.0-alpha2"
     },
     "suggest": {
         "ext-pdo_sqlite": "Lokální plánovač lqcron (scheduler.enabled) — potřeba jedno z ext-pdo_sqlite / ext-sqlite3, i v PHP-FPM, které joby zařazuje",
