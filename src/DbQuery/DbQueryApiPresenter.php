@@ -64,7 +64,6 @@ class DbQueryApiPresenter extends Presenter
 		$connection = $rawConnection;
 		$this->assertValidConnection($connection);
 
-		/** @var mixed $bindings */
 		$bindings = $decoded['bindings'] ?? [];
 
 		if (!\is_array($bindings)) {
