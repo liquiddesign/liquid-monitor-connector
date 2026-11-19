@@ -39,6 +39,12 @@ final class ReadOnlyQueryRunner
 
 	private const DEFAULT_TIMEOUT_SECONDS = 5;
 
+	/**
+	 * Characters stripped by ltrim()/rtrim() — the pre-PHP 8.6 default, spelled out so the
+	 * behaviour doesn't change when 8.6 adds the form feed to the default set.
+	 */
+	private const TRIM_CHARACTERS = " \n\r\t\v\0";
+
 	private const FORBIDDEN_KEYWORDS = [
 		'insert', 'update', 'delete', 'drop', 'alter', 'create', 'truncate',
 		'grant', 'revoke', 'replace', 'merge', 'call', 'exec', 'execute',
@@ -260,13 +266,13 @@ final class ReadOnlyQueryRunner
 		}
 
 		$isMysql = $this->resolveDriver($this->connection['driver']) === 'mysql';
-		$trimmed = \ltrim(self::maskLiteralsAndComments($sql, $isMysql));
+		$trimmed = \ltrim(self::maskLiteralsAndComments($sql, $isMysql), self::TRIM_CHARACTERS);
 
 		if (\preg_match('/^(select|with)\b/i', $trimmed) !== 1) {
 			throw new InvalidArgumentException('Only SELECT or WITH queries are allowed.');
 		}
 
-		$body = \rtrim(\rtrim($trimmed), ';');
+		$body = \rtrim(\rtrim($trimmed, self::TRIM_CHARACTERS), ';');
 
 		if (\str_contains($body, ';')) {
 			throw new InvalidArgumentException('Multiple statements are not allowed.');
@@ -281,7 +287,7 @@ final class ReadOnlyQueryRunner
 
 	private function wrapWithLimit(string $sql, int $limit): string
 	{
-		$body = \rtrim(\rtrim(Strings::trim($sql)), ';');
+		$body = \rtrim(\rtrim(Strings::trim($sql), self::TRIM_CHARACTERS), ';');
 
 		// The newline ends a trailing `#` / `--` comment of the query, so it cannot swallow the wrapper.
 		return "select * from ({$body}\n) as triage_readonly_sub limit {$limit}";
