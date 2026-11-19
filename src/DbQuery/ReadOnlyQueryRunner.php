@@ -192,6 +192,31 @@ final class ReadOnlyQueryRunner
 	}
 
 	/**
+	 * The statement that caps one query's runtime on the given server, or null where none is known.
+	 *
+	 * MariaDB has no `max_execution_time` (MySQL's, in ms) — it rejects it as an unknown
+	 * variable and has its own `max_statement_time` in seconds. Until 4.2.1 the MySQL one was
+	 * sent to MariaDB too, the error was swallowed and every query there ran uncapped.
+	 * @internal public for tests
+	 */
+	public static function statementTimeoutSql(string $driver, string $serverVersion, int $seconds): ?string
+	{
+		$seconds = \max(1, $seconds);
+
+		if ($driver === 'pgsql') {
+			return 'SET statement_timeout = ' . ($seconds * 1000);
+		}
+
+		if ($driver !== 'mysql') {
+			return null;
+		}
+
+		return Strings::contains(Strings::lower($serverVersion), 'mariadb')
+			? "SET SESSION max_statement_time = {$seconds}"
+			: 'SET SESSION max_execution_time = ' . ($seconds * 1000);
+	}
+
+	/**
 	 * @param list<scalar|null> $bindings
 	 */
 	private function executePrepared(PDO $pdo, string $sql, array $bindings): PDOStatement
@@ -318,14 +343,16 @@ final class ReadOnlyQueryRunner
 
 	private function applyStatementTimeout(PDO $pdo): void
 	{
-		$ms = \max(1, $this->statementTimeoutSeconds) * 1000;
-		$driver = $this->resolveDriver($this->connection['driver']);
-
 		try {
-			if ($driver === 'pgsql') {
-				$pdo->exec("SET statement_timeout = {$ms}");
-			} elseif ($driver === 'mysql') {
-				$pdo->exec("SET SESSION max_execution_time = {$ms}");
+			$serverVersion = $pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
+			$sql = self::statementTimeoutSql(
+				$this->resolveDriver($this->connection['driver']),
+				\is_string($serverVersion) ? $serverVersion : '',
+				$this->statementTimeoutSeconds,
+			);
+
+			if ($sql !== null) {
+				$pdo->exec($sql);
 			}
 		} catch (Throwable) {
 			// Best effort — if the server variant doesn't support the setting, the

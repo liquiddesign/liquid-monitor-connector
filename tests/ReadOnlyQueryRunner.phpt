@@ -85,6 +85,15 @@ Assert::same("select * from (SELECT 1\n) as triage_readonly_sub limit 100", $wra
 // A trailing line comment of the query ends at the newline and cannot swallow the wrapper.
 Assert::same("select * from (SELECT 1 -- note\n) as triage_readonly_sub limit 5", $wrapLimit('SELECT 1 -- note', 5));
 
+// --- Statement timeout ---
+// MariaDB rejects MySQL's max_execution_time (unknown variable); it has max_statement_time in seconds.
+Assert::same('SET SESSION max_statement_time = 7', ReadOnlyQueryRunner::statementTimeoutSql('mysql', '11.4.13-MariaDB-deb12', 7));
+Assert::same('SET SESSION max_statement_time = 5', ReadOnlyQueryRunner::statementTimeoutSql('mysql', '5.5.5-10.11.6-MariaDB-0+deb12u1', 5));
+Assert::same('SET SESSION max_execution_time = 7000', ReadOnlyQueryRunner::statementTimeoutSql('mysql', '8.0.36', 7));
+Assert::same('SET statement_timeout = 7000', ReadOnlyQueryRunner::statementTimeoutSql('pgsql', '16.2', 7));
+Assert::same('SET SESSION max_statement_time = 1', ReadOnlyQueryRunner::statementTimeoutSql('mysql', '10.6.0-MariaDB', 0));
+Assert::null(ReadOnlyQueryRunner::statementTimeoutSql('sqlite', '3.45', 5));
+
 // --- Bindings ---
 Assert::same([], ReadOnlyQueryRunner::normalizeBindings([]));
 Assert::same([1, 'a', 1.5, true, null], ReadOnlyQueryRunner::normalizeBindings([1, 'a', 1.5, true, null]));
