@@ -3,6 +3,20 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [4.2.2] — 2026-11-24
+
+### Security
+- DB query API (PostgreSQL): a quote inside a dollar-quoted string (`$$…$$`, `$tag$…$tag$`) opened a literal the
+  read-only check saw but the server did not, hiding the code after it — `select $$"$$ x; delete from users; -- "`
+  passed the check. Dollar-quoted strings are now masked like other literals; an unterminated one is refused. The
+  read-only session and the prepared statement from 4.2.0 already kept such a query from writing.
+
+## [4.2.1] — 2026-11-19
+
+### Fixed
+- DB query API: the statement timeout now applies on MariaDB (`max_statement_time`). MariaDB rejected MySQL's
+  `max_execution_time`, the error was swallowed and every query there ran uncapped.
+
 ## [4.2.0] — 2026-11-09
 
 ### Security

@@ -135,7 +135,8 @@ final class ReadOnlyQueryRunner
 	 *  - MySQL: `#` and `-- ` (dash dash + whitespace) are comments; `--x` is not; backslash escapes
 	 *    a quote (default sql_mode);
 	 *  - PostgreSQL: `--` is always a comment, `#` is an operator, backslash escapes only in `E'…'`;
-	 *    dollar-quoted strings stay unmasked (their content is checked as code).
+	 *    dollar-quoted strings (`$$…$$`, `$tag$…$tag$`) are literals too — left unmasked, a quote
+	 *    inside one would open a literal the server never sees and hide the code after it.
 	 *
 	 * Refuses MySQL / MariaDB executable comments (`/*! … *\/`, `/*M! … *\/`) — the server runs
 	 * their content — and unterminated literals or comments.
@@ -157,6 +158,17 @@ final class ReadOnlyQueryRunner
 				$masked .= ' q ';
 
 				continue;
+			}
+
+			if (!$isMysql && $char === '$') {
+				$end = self::findDollarQuoteEnd($sql, $position);
+
+				if ($end !== null) {
+					$position = $end;
+					$masked .= ' q ';
+
+					continue;
+				}
 			}
 
 			if ($char === '/' && $next === '*') {
@@ -398,6 +410,32 @@ final class ReadOnlyQueryRunner
 		}
 
 		throw new InvalidArgumentException('Unterminated quoted string.');
+	}
+
+	/**
+	 * PostgreSQL dollar quote opening at $open (`$$` or `$tag$`, not part of an identifier and not
+	 * a `$1` parameter): the position right after its closing tag, or null when none opens there.
+	 */
+	private static function findDollarQuoteEnd(string $sql, int $open): ?int
+	{
+		$previous = $open > 0 ? $sql[$open - 1] : '';
+
+		if ($previous !== '' && (\ctype_alnum($previous) || $previous === '_' || $previous === '$')) {
+			return null;
+		}
+
+		if (\preg_match('/\G\$([A-Za-z_][A-Za-z0-9_]*)?\$/', $sql, $match, 0, $open) !== 1) {
+			return null;
+		}
+
+		$tag = $match[0];
+		$close = \strpos($sql, $tag, $open + \strlen($tag));
+
+		if ($close === false) {
+			throw new InvalidArgumentException('Unterminated dollar-quoted string.');
+		}
+
+		return $close + \strlen($tag);
 	}
 
 	private static function mysqlMultiStatementsAttribute(): int

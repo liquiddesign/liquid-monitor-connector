@@ -62,6 +62,17 @@ Assert::same('select 1  , 2', $mask('select 1 /* c */, 2'));
 Assert::same('select 1 # 2', $mask('select 1 # 2', false));
 Assert::same('select  q   q ', $mask("select 'a\\' 'b'", false));
 Assert::same("select E q ", $mask("select E'a\\'b'", false));
+// PostgreSQL dollar quotes are literals: a quote inside one must not open a literal the server never sees
+// and hide the code after it from the check (before 4.2.2 they stayed unmasked).
+Assert::same('select  q ,  q ', $mask('select $$it\'s; delete$$, $tag$x$tag$', false));
+Assert::same('select price$1', $mask('select price$1', false));
+Assert::exception(static fn () => $mask('select $$ never closed', false), InvalidArgumentException::class, 'Unterminated dollar-quoted string.');
+$assertRejectsPgsql = static function (string $sql) use ($connection): void {
+	$runner = new ReadOnlyQueryRunner(['driver' => 'pgsql'] + $connection);
+	Assert::exception(static fn () => $runner->run($sql), InvalidArgumentException::class);
+};
+$assertRejectsPgsql('select $$"$$ x; delete from users; -- "');
+$assertRejectsPgsql("explain analyze with s as (select '--'), d as (delete from users returning 1) select * from d");
 
 // Allowed starters.
 $wrapLimit = static function (string $sql, int $limit) use ($connection): string {
